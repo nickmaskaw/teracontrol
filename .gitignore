@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.dist-info/
+.pytest_cache/
+
+# Virtual environments
+.env
+.venv
+conda-env/
+
+# Editors
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs & data
+logs/
+data/
+*.h5
+*.hdf5
+
+# Temporary files
+*.tmp
+*.swp
