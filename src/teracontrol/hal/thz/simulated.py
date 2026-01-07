@@ -30,7 +30,7 @@ class SimulatedTHzSystem(THzAcquisitionSystem):
             raise RuntimeError("Simulated THz system is not connected.")
         
         # simulate acquisition time
-        time.sleep(0.1)
+        time.sleep(0.25)
 
         # fake time axis (ps)
         t = np.linspace(-10, 10, self.delay_points)

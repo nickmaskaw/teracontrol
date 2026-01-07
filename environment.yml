@@ -8,4 +8,7 @@ dependencies:
   - pyyaml
   - h5py
   - pytest
+  - ipykernel
+  - pyqtgraph
+  - pyside6
 prefix: C:\Users\nickm\miniconda3\envs\teracontrol
