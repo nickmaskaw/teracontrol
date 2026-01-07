@@ -1,0 +1,11 @@
+name: teracontrol
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.14
+  - numpy
+  - pyyaml
+  - h5py
+  - pytest
+prefix: C:\Users\nickm\miniconda3\envs\teracontrol
