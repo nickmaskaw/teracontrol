@@ -3,30 +3,31 @@ from PySide6 import QtWidgets
 
 from teracontrol.gui.thz_control import THzControlWidget
 from teracontrol.gui.live_plot import LivePlotWidget
-
-from teracontrol.hal.thz.simulated import SimulatedTHzSystem
-from teracontrol.acquisition.livestream import THzLiveStream
-from teracontrol.acquisition.livestream_worker import LiveStreamWorker
+from teracontrol.app.controller import AppController
 
 
 class MainWindow(QtWidgets.QMainWindow):
     """
     Main application window for teracontrol GUI.
-
-    For now, this window only hosts a central live plot.
     """
     
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("teracontrol")
 
-        # --- Core objects ---
-        self.thz = SimulatedTHzSystem()
-        self.worker = None
+        # --- Controller ---
+        self.controller = AppController(
+            config_path="configs/experiments/live_monitor.yaml",
+            on_new_trace=self.on_new_trace,
+            on_status=self.update_status,
+        )
+
+        self.setWindowTitle(self.controller.config["gui"]["window_title"])
 
         # --- GUI widgets ---
         self.thz_control = THzControlWidget()
-        self.live_plot = LivePlotWidget()
+        self.live_plot = LivePlotWidget(
+            initial_config=self.controller.config["livestream"]
+        )
 
         central = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout()
@@ -38,66 +39,41 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage("Disconnected")
 
         # --- Wiring ---
-        self.thz_control.connect_requested.connect(self.connect_thz)
-        self.thz_control.disconnect_requested.connect(self.disconnect_thz)
+        self.thz_control.connect_requested.connect(self.on_connect)
+        self.thz_control.disconnect_requested.connect(self.on_disconnect)
 
-        self.live_plot.run_requested.connect(self.start_livestream)
-        self.live_plot.stop_requested.connect(self.stop_livestream)
+        self.live_plot.run_requested.connect(self.on_run)
+        self.live_plot.stop_requested.connect(self.on_stop)
 
-        # --- THz control ---
+    # --- GUI callbacks ---
 
-    def connect_thz(self):
-        try:
-            self.thz.connect()
-            self.statusBar().showMessage("Connected")
-            self.thz_control.set_connected(True)
-        except Exception as e:
-            self.statusBar().showMessage(f"Connection error: {e}")
-            self.thz_control.set_connected(False)
+    def on_connect(self):
+        ok = self.controller.connect_thz()
+        self.thz_control.set_connected(ok)
 
-    def disconnect_thz(self):
-        self.stop_livestream()
-        self.thz.disconnect()
-        self.statusBar().showMessage("Disconnected")
+    def on_disconnect(self):
+        self.controller.disconnect_thz()
         self.thz_control.set_connected(False)
+        self.live_plot.set_running(False)
 
-    # --- Livestream control ---
-
-    def start_livestream(self):
-        if self.worker is not None:
-            return
-        
-        self.worker = LiveStreamWorker(thz=self.thz)
-        self.worker.new_trace.connect(self.on_new_trace)
-        self.worker.finished.connect(self.on_livestream_finished)
-
-        self.statusBar().showMessage("Running livestream")
+    def on_run(self):
+        self.controller.start_livestream(
+            livestream_config=self.live_plot.get_config()
+        )
         self.live_plot.set_running(True)
 
-        self.worker.start()
-
-    def stop_livestream(self):
-        if self.worker is None:
-            return
-
-        self.worker.stop()
-        self.worker.quit()
-        self.worker.wait()
-
-        self.worker = None
-
-        self.statusBar().showMessage("Connected")
+    def on_stop(self):
+        self.controller.stop_livestream()
         self.live_plot.set_running(False)
 
-    def on_livestream_finished(self):
-        self.worker = None
-        self.statusBar().showMessage("Connected")
-        self.live_plot.set_running(False)
-
-    # --- Data Sink ---
+    def update_status(self, message: str):
+        self.statusBar().showMessage(message)
 
     def on_new_trace(self, trace):
-        self.live_plot.update_trace(trace["time_ps"], trace["signal"])
+        self.live_plot.update_trace(
+            trace["time_ps"],
+            trace["signal"],
+        )
 
 
 def main():

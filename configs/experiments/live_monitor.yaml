@@ -1,0 +1,10 @@
+experiment:
+  name: live_monitor
+thz:
+  simulated: true
+  data_points: 1024
+livestream:
+  period_s: 0.0
+gui:
+  window_title: teracontrol -- Live Monitor
+  auto_start: false
