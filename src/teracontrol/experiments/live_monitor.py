@@ -1,6 +1,6 @@
 from typing import Callable, Optional
 
-from teracontrol.acquisition.livestream import THzLiveStream
+from teracontrol.engines.livestream import THzLiveStream
 
 
 class LiveMonitorExperiment:

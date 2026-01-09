@@ -7,9 +7,7 @@ from teracontrol.app.controller import AppController
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    """
-    Main application window for teracontrol GUI.
-    """
+    """Main window and application entry point."""
     
     def __init__(self):
         super().__init__()

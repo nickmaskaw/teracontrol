@@ -1,6 +1,6 @@
 from teracontrol.hal.thz.simulated import SimulatedTHzSystem
 from teracontrol.experiments.live_monitor import LiveMonitorExperiment
-from teracontrol.acquisition.experiment_worker import ExperimentWorker
+from teracontrol.engines.experiment_worker import ExperimentWorker
 from teracontrol.config.loader import load_config, save_config
 
 
