@@ -1,25 +1,22 @@
 from teracontrol.hal.thz.simulated import SimulatedTHzSystem
 from teracontrol.experiments.live_monitor import LiveMonitorExperiment
 from teracontrol.engines.experiment_worker import ExperimentWorker
+from teracontrol.engines.connection import ConnectionEngine
 from teracontrol.config.loader import load_config, save_config
 
 
 class AppController:
-    """
-    Application-level controller.
-
-    Owns:
-    - config
-    - THz system
-    - experiment lifecycle
-    - worker thread
-
-    Has no GUI code.
-    """
+    """Application-level controller."""
 
     def __init__(self, config_path: str, on_new_trace, on_status):
         self.config_path = config_path
         self.config = load_config(config_path)
+
+        self.connection_engine = ConnectionEngine(
+            instruments={
+                "THz System": SimulatedTHzSystem(),
+            }
+        )
 
         self.thz = SimulatedTHzSystem()
         self.experiment = None
@@ -28,22 +25,22 @@ class AppController:
         self.on_new_trace = on_new_trace
         self.on_status = on_status
 
-    # --- THz control ---
+    # --- Instrument control ---
 
-    def connect_thz(self):
-        try:
-            self.thz.connect()
-            self.on_status("Connected")
-            return True
-        except Exception as e:
-            self.on_status(f"Connection error: {e}")
-            return False
-        
-    def disconnect_thz(self):
-        self.stop_livestream()
-        self.thz.disconnect()
-        self.on_status("Disconnected")
+    def connect_instrument(self, name: str) -> bool:
+        ok = self.connection_engine.connect(name)
+        self.on_status(
+            f"{name} connected" if ok else f"Failed to connect {name}"
+        )
+        return ok
+    
+    def disconnect_instrument(self, name: str):
+        self.connection_engine.disconnect(name)
+        self.on_status(f"{name} disconnected")
 
+    def instrument_status(self):
+        return self.connection_engine.status()
+    
     # --- Experiment control ---
 
     def start_livestream(self, livestream_config: dict):
