@@ -1,79 +1,38 @@
-from teracontrol.hal.thz.simulated import SimulatedTHzSystem
-from teracontrol.experiments.live_monitor import LiveMonitorExperiment
-from teracontrol.engines.experiment_worker import ExperimentWorker
-from teracontrol.engines.connection import ConnectionEngine
+from teracontrol.engines.connection_engine import ConnectionEngine
 from teracontrol.config.loader import load_config, save_config
 
-
 class AppController:
-    """Application-level controller."""
+    """Manages the application state and logic."""
 
-    def __init__(self, config_path: str, on_new_trace, on_status):
-        self.config_path = config_path
-        self.config = load_config(config_path)
+    def __init__(self, instrument_config_path: str, update_status: callable):
+        self.instrument_config_path = instrument_config_path
+        self.instrument_config = load_config(instrument_config_path)
 
         self.connection_engine = ConnectionEngine(
             instruments={
-                "THz System": SimulatedTHzSystem(),
+                "THz System": None,
             }
         )
 
-        self.thz = SimulatedTHzSystem()
-        self.experiment = None
-        self.worker = None
+        self.update_status = update_status
 
-        self.on_new_trace = on_new_trace
-        self.on_status = on_status
+    # --- Instruments ---
 
-    # --- Instrument control ---
-
-    def connect_instrument(self, name: str) -> bool:
+    def connect_instrument(self, name: str, address: str) -> bool:
         ok = self.connection_engine.connect(name)
-        self.on_status(
-            f"{name} connected" if ok else f"Failed to connect {name}"
-        )
+        text = f"{name} ({address}) connected" if ok else f"Failed to connect {name} ({address})"   
+        self.update_status(text)
+        print(text)
+        if ok:
+            self.instrument_config[name]["address_preset"] = address
+            addresses = self.instrument_config[name]["addresses"]
+            if not address in addresses:
+                addresses.append(address)
+            save_config(self.instrument_config, self.instrument_config_path)
         return ok
-    
+
     def disconnect_instrument(self, name: str):
         self.connection_engine.disconnect(name)
-        self.on_status(f"{name} disconnected")
-
-    def instrument_status(self):
-        return self.connection_engine.status()
-    
-    # --- Experiment control ---
-
-    def start_livestream(self, livestream_config: dict):
-        if self.worker is not None:
-            return
-
-        # Update authoritative config and checkpoint preset
-        self.config["livestream"] = livestream_config
-        save_config(self.config, self.config_path)
-
-        self.experiment = LiveMonitorExperiment(
-            thz=self.thz,
-            livestream_config=livestream_config,
-            on_new_trace=self.on_new_trace,
-        )
-
-        self.worker = ExperimentWorker(self.experiment)
-        self.worker.finished.connect(self._on_experiment_finished)
-
-        self.on_status("Running livestream")
-        self.worker.start()
-
-    def stop_livestream(self):
-        if self.worker is None:
-            return
-
-        self.worker.stop()
-        self.worker.quit()
-        self.worker.wait()
-
-        self.worker = None
-        self.on_status("Connected")
-
-    def _on_experiment_finished(self):
-        self.worker = None
-        self.on_status("Connected")
+        text = f"{name} disconnected"
+        self.update_status(text)
+        print(text)

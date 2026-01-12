@@ -1,0 +1,7 @@
+THz System:
+  address_preset: '6006'
+  address_type: port
+  addresses:
+  - '6006'
+  - '6007'
+  name: Toptica TeraFlash PRO
