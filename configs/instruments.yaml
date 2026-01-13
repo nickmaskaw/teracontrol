@@ -1,7 +1,11 @@
 THz System:
-  address_preset: '6006'
-  address_type: port
+  address_preset: 169.254.84.101
+  address_pattern: <ip>
   addresses:
-  - '6006'
-  - '6007'
+  - 169.254.84.101
   name: Toptica TeraFlash PRO
+  ports:
+    udp_cmd: 61234
+    udp_rx: 61235
+    tcp_sync: 6007
+    timeout: 2.0

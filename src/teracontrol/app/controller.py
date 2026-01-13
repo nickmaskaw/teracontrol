@@ -1,6 +1,8 @@
 from teracontrol.engines.connection_engine import ConnectionEngine
 from teracontrol.config.loader import load_config, save_config
 
+from teracontrol.hal.thz.simulated import SimulatedTHzSystem
+
 class AppController:
     """Manages the application state and logic."""
 
@@ -10,7 +12,7 @@ class AppController:
 
         self.connection_engine = ConnectionEngine(
             instruments={
-                "THz System": None,
+                "THz System": SimulatedTHzSystem(self.instrument_config["THz System"]["ports"]),
             }
         )
 
@@ -19,7 +21,7 @@ class AppController:
     # --- Instruments ---
 
     def connect_instrument(self, name: str, address: str) -> bool:
-        ok = self.connection_engine.connect(name)
+        ok = self.connection_engine.connect(name, address)
         text = f"{name} ({address}) connected" if ok else f"Failed to connect {name} ({address})"   
         self.update_status(text)
         print(text)

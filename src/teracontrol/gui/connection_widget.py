@@ -26,6 +26,7 @@ class ConnectionWidget(QtWidgets.QWidget):
             combo.setEditable(True)
             combo.addItems(self.config[name]["addresses"])
             combo.setCurrentText(self.config[name]["address_preset"])
+            combo.setToolTip(self.config[name]["address_pattern"])
             combo.lineEdit().returnPressed.connect(button.click)
 
             self.combos[name] = combo
@@ -41,13 +42,13 @@ class ConnectionWidget(QtWidgets.QWidget):
     def _button_clicked(self, name:str):
         if self.buttons[name].text() == "Connect":
             self._update_combo(name)
-            self.connect_requested.emit(name, self.combos[name].currentText())
+            self.connect_requested.emit(name, self.combos[name].currentText().strip())
         else:
             self.disconnect_requested.emit(name)
 
     def _update_combo(self, name: str):
         combo = self.combos[name]
-        text = combo.currentText()
+        text = combo.currentText().strip()
 
         if combo.findText(text) == -1:
             combo.addItem(text)
