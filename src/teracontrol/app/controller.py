@@ -25,12 +25,12 @@ class AppController:
         text = f"{name} ({address}) connected" if ok else f"Failed to connect {name} ({address})"   
         self.update_status(text)
         print(text)
-        if ok:
+        if ok and address != self.instrument_config[name]["address_preset"]:
             self.instrument_config[name]["address_preset"] = address
-            addresses = self.instrument_config[name]["addresses"]
-            if not address in addresses:
-                addresses.append(address)
+            if not address in self.instrument_config[name]["addresses"]:
+                self.instrument_config[name]["addresses"].append(address)
             save_config(self.instrument_config, self.instrument_config_path)
+            print(f"Saved config to {self.instrument_config_path}")
         return ok
 
     def disconnect_instrument(self, name: str):
