@@ -65,6 +65,7 @@ class AppController:
 
         self.update_status("Running livestream")
         self.worker.start()
+        return True
 
     def stop_livestream(self):
         if self.worker is None:
