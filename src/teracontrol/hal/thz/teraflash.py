@@ -3,66 +3,68 @@ import numpy as np
 
 
 class TeraflashTHzSystem:
-    def __init__(self, port_config: dict):
-        self.udp_cmd_port: int = port_config["udp_cmd"]
-        self.udp_rx_port: int = port_config["udp_rx"]
-        self.udp_tx_port: int = port_config["udp_tx"]
-        self.tcp_sync_port: int = port_config["tcp_sync"]
-        self.timeout: float = port_config["timeout"]
 
+    UDP_CMD_PORT = 61234
+    UDP_RX_PORT = 61235
+    UDP_TX_PORT = 61237
+    TCP_SYNC_PORT = 6007
+
+    def __init__(self, timeout_s: float = 15.0):
+        self.timeout = timeout_s
         self.host: str = ""
-        
         self._udp_tx = None
         self._udp_rx = None
 
     # --- Connection handling ---
 
-    def connect(self, address: str) -> None:
+    def connect(self, address_ip: str = "127.0.0.1") -> None:
+        """Open UDP sockets and bind to ports."""
         try: 
-            self.host = address
+            self.host = address_ip
             self._udp_tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self._udp_rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-            self._udp_rx.bind((self.host, self.udp_rx_port))
+            self._udp_rx.bind((self.host, self.UDP_RX_PORT))
             self._udp_rx.settimeout(self.timeout)
 
-            self._udp_tx.bind((self.host, self.udp_tx_port))
+            self._udp_tx.bind((self.host, self.UDP_TX_PORT))
 
-            print(f"Simulated THz system connected to {address}")
+            print(f"Connected to Teraflash THz system")
         except Exception as e:
-            raise RuntimeError(f"Failed to connect to {address}\n{e}")
+            raise RuntimeError(f"Failed to connect to Teraflash THz system\n{e}")
 
     def disconnect(self) -> None:
-        """Close all sockets."""
+        """Close all UDP sockets."""
         if self._udp_tx is not None:
             self._udp_tx.close()
             self._udp_tx = None
         if self._udp_rx is not None:
             self._udp_rx.close()
             self._udp_rx = None
-        print("Simulated THz system disconnected")
+        print("Disconnected from Teraflash THz system")
     
     # --- UDP control layer ---
 
     def _send_command(self, cmd: str) -> str:
         """Send a raw RC/RD command and return the response string."""
+
         if not self._udp_tx or not self._udp_rx:
-            raise RuntimeError("Simulated THz system is not connected.")
+            raise RuntimeError("Not connected to Teraflash THz system")
         
         # --- Send a command ---
-        self._udp_tx.sendto(cmd.encode("ascii"), (self.host, self.udp_cmd_port))
-        print(f"Sending {cmd}")
+        self._udp_tx.sendto(cmd.encode("ascii"), (self.host, self.UDP_CMD_PORT))
+        print(f"Sending {cmd} to Teraflash THz system")
 
         # --- Receive a response ---
         data, _ = self._udp_rx.recvfrom(1024)
         response = data.decode("ascii").strip()
-        print(f"Received {response}")
+        print(f"Received {response} from Teraflash THz system")
         return response
     
     def _expect_ok(self, response: str):
         """Raise an exception if the response is not OK."""
         if not response.startswith("OK"):
-            raise RuntimeError(f"TeraFlash error: {response}")
+            raise RuntimeError(f"Teraflash error: {response}")
 
     def _read(self, cmd: str) -> str:
         """
@@ -94,27 +96,43 @@ class TeraflashTHzSystem:
     def emitter_off(self, channel: int = 1):
         self._expect_ok(self._send_command(f"RC-VOLT{channel} : OFF"))
 
-    def start(self):
+    def run(self):
         self._expect_ok(self._send_command("RC-RUN : ON"))
     
     def stop(self):
         self._expect_ok(self._send_command("RC-RUN : OFF"))
 
+    def wait_on(self):
+        self._expect_ok(self._send_command("RC-WAIT : ON"))
+
+    def wait_off(self):
+        self._expect_ok(self._send_command("RC-WAIT : OFF"))
+
+    def auto_on(self):
+        self._expect_ok(self._send_command("RC-AUTO : ON"))
+
+    def auto_off(self):
+        self._expect_ok(self._send_command("RC-AUTO : OFF"))
+
     # --- Acquisition settings ---
     
     def set_begin_ps(self, value: float):
-        self._expect_ok(self._send_command(f"RC-BEGIN {value} "))
+        self._expect_ok(self._send_command(f"RC-BEGIN %.1f {value}"))
     
     def set_range_ps(self, value: int):
-        self._expect_ok(self._send_command(f"RC-RANGE {value} "))
+        self._expect_ok(self._send_command(f"RC-RANGE %d {value}"))
 
     def set_average_points(self, value: int):
-        self._expect_ok(self._send_command(f"RC-AVERAGE {value} "))
+        self._expect_ok(self._send_command(f"RC-AVERAGE %d {value}"))
 
     # --- Read commands ---
 
     def get_amplitude_nA(self) -> float:
         return float(self._read("RD-AMPLITUDE"))
+    
+    def get_tactime_s(self) -> float:
+        """Return the estimated total aquisition time of averaged traces."""
+        return float(self._read("RD-TAC.TIME"))
     
     def get_laser_state(self) -> str:
         return self._read("RD-LASER")
@@ -133,6 +151,12 @@ class TeraflashTHzSystem:
     
     def get_average_points(self) -> int:
         return int(self._read("RD-AVERAGE"))
+
+    def get_wait_state(self) -> str:
+        return self._read("RD-WAIT")
+    
+    def get_auto_state(self) -> str:
+        return self._read("RD-AUTO")
     
     # --- TCP acquisition layer (sync) ---
 
@@ -144,7 +168,7 @@ class TeraflashTHzSystem:
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(self.timeout)
-        sock.connect((self.host, self.tcp_sync_port))
+        sock.connect((self.host, self.TCP_SYNC_PORT))
 
         # first packet: 6-byte length
         length_bytes = self._recv_exact(sock, 6)
