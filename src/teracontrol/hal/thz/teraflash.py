@@ -139,6 +139,9 @@ class TeraflashTHzSystem:
     def acquire_trace(self):
         """Acquire a single synchronous time-domain trace."""
 
+        if not self._udp_tx or not self._udp_rx:
+            raise RuntimeError("Simulated THz system is not connected.")
+
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(self.timeout)
         sock.connect((self.host, self.tcp_sync_port))

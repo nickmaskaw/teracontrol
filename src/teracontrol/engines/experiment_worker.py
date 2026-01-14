@@ -13,7 +13,7 @@ class ExperimentWorker(QtCore.QThread):
         self.experiment = experiment
 
     def run(self):
-        self.experiment.start()
+        self.experiment.run()
         self.finished.emit()
 
     def stop(self):

@@ -6,7 +6,7 @@ from teracontrol.app.controller import AppController
 
 from teracontrol.gui.connection_widget import ConnectionWidget
 from teracontrol.gui.livemonitor_widget import LiveMonitorWidget
-
+from teracontrol.gui.livestream_experiment_widget import LiveStreamExperimentWidget
 
 class MainWindow(QtWidgets.QMainWindow):
     """Application main window and entry point."""
@@ -28,6 +28,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.controller = AppController(
             instrument_config_path=self.INSTRUMENT_CONFIG_PATH,
             update_status=self.update_status,
+            update_trace=self.update_trace,
         )
 
         # --- Widgets ---
@@ -36,6 +37,7 @@ class MainWindow(QtWidgets.QMainWindow):
             config=self.controller.instrument_config,
             config_path=self.INSTRUMENT_CONFIG_PATH,
         )
+        self.livestream_experiment_widget = LiveStreamExperimentWidget()
         self.livemonitor_widget = LiveMonitorWidget()
         
         # --- Placement ---
@@ -45,12 +47,20 @@ class MainWindow(QtWidgets.QMainWindow):
             parent=self,
             widget=self.connection_widget,
         )
+        self.livestream_dock = DockWidget(
+            name='Livestream',
+            parent=self,
+            widget=self.livestream_experiment_widget,
+        )
         self.setCentralWidget(self.livemonitor_widget)
 
         # --- Wiring ---
 
         self.connection_widget.connect_requested.connect(self.connection_callback)
         self.connection_widget.disconnect_requested.connect(self.disconnection_callback)
+
+        self.livestream_experiment_widget.run_requested.connect(self.run_callback)
+        self.livestream_experiment_widget.stop_requested.connect(self.stop_callback)
 
         # --- Fake test data ---
         
@@ -70,10 +80,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self.controller.disconnect_instrument(name)
         self.connection_widget.set_connected(name, False)
 
+    def run_callback(self):
+        ok = self.controller.run_livestream()
+        self.livestream_experiment_widget.set_running(ok)
+
+    def stop_callback(self):
+        self.controller.stop_livestream()
+        self.livestream_experiment_widget.set_running(False)
+
     # --- GUI helpers ---
 
     def update_status(self, message: str):
         self.statusBar().showMessage(message)
+
+    def update_trace(self, time, signal):
+        self.livemonitor_widget.update_trace(time, signal)
 
 
 class DockWidget(QtWidgets.QDockWidget):
