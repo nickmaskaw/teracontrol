@@ -45,9 +45,13 @@ class TeraflashTHzSystem:
 
             self._udp_tx.bind((self.host, self.UDP_TX_PORT))
 
-            print(f"Connected to Teraflash THz system")
-        except Exception as e:
-            raise RuntimeError(f"Failed to connect to Teraflash THz system\n{e}")
+            # --- ACTIVE verification ---
+            self._probe()
+
+        except Exception:
+            # Ensure partial sockets don't linger
+            self.disconnect
+            raise
 
     def disconnect(self) -> None:
         """Close all UDP sockets."""
@@ -57,7 +61,22 @@ class TeraflashTHzSystem:
         if self._udp_rx is not None:
             self._udp_rx.close()
             self._udp_rx = None
-        print("Disconnected from Teraflash THz system")
+        #print("Disconnected from Teraflash THz system")
+
+    def _probe(self, short_timeout: float = 1.0) -> None:
+        """
+        Verify that the instrument is reachable and responding.
+
+        Uses a short timeout to fail fast during connection.
+        """
+        try:
+            self._udp_rx.settimeout(short_timeout)
+            
+            response = self._send_command("RD-RUN")
+            if response not in ("ON", "OFF"):
+                raise RuntimeError(f"Unexpected probe response: {response}")
+        finally:
+            self._udp_rx.settimeout(self.timeout)
     
     # --- UDP control layer ---
 

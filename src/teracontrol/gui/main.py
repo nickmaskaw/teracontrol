@@ -18,13 +18,11 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
 
         # --- Definitions ---
-
         self.setWindowTitle(self.APP_NAME)
         self.resize(1200, 800)
         self.window_menu = self.menuBar().addMenu("&Window")
         
         # --- Controller ---
-
         self.controller = AppController(
             instrument_config_path=self.INSTRUMENT_CONFIG_PATH,
             update_status=self.update_status,
@@ -32,7 +30,6 @@ class MainWindow(QtWidgets.QMainWindow):
         )
 
         # --- Widgets ---
-
         self.connection_widget = ConnectionWidget(
             config=self.controller.instrument_config,
             config_path=self.INSTRUMENT_CONFIG_PATH,
@@ -41,7 +38,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.livemonitor_widget = LiveMonitorWidget()
         
         # --- Placement ---
-
         self.connection_dock = DockWidget(
             name='Connection',
             parent=self,
@@ -55,7 +51,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(self.livemonitor_widget)
 
         # --- Wiring ---
-
         self.connection_widget.connect_requested.connect(self.connection_callback)
         self.connection_widget.disconnect_requested.connect(self.disconnection_callback)
 
@@ -63,7 +58,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.livestream_experiment_widget.stop_requested.connect(self.stop_callback)
 
         # --- Fake test data ---
-        
         t = np.linspace(-10, 10, 1024)
         # fake THz pulse
         noise = 0.02 * np.random.normal(size=1024)
