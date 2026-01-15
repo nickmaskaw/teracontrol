@@ -68,13 +68,13 @@ class TeraflashTHzSystem:
             raise RuntimeError("Not connected to Teraflash THz system")
         
         # --- Send a command ---
-        self._udp_tx.sendto(cmd.encode("ascii"), (self.host, self.UDP_CMD_PORT))
-        print(f"Sending {cmd} to Teraflash THz system")
+        self._udp_tx.sendto(cmd.encode("ascii"), (self.host, self.UDP_CMD_PORT))    
+        #print(f"Sending {cmd} to Teraflash THz system")
 
         # --- Receive a response ---
         data, _ = self._udp_rx.recvfrom(1024)
         response = data.decode("ascii").strip()
-        print(f"Received {response} from Teraflash THz system")
+        #print(f"Received {response} from Teraflash THz system")
         return response
     
     def _expect_ok(self, response: str):
@@ -83,20 +83,8 @@ class TeraflashTHzSystem:
             raise RuntimeError(f"Teraflash error: {response}")
 
     def _read(self, cmd: str) -> str:
-        """
-        Send an RD-* command and return the parsed value.
-        
-        Returns:
-            None              -> for OK with no value
-            str / int / float -> parsed value
-        """
-        
-        response = self._send_command(cmd)
-        parts = response.split(maxsplit=1)
-        if len(parts) == 1:
-            return None
-        else:
-            return parts[1]
+        # ToDo: implement some kind of parsing
+        return self._send_command(cmd)
 
     # --- System control ---
     
