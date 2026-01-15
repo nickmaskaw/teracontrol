@@ -1,8 +1,24 @@
 import socket
+import warnings
+import time
 import numpy as np
 
 
 class TeraflashTHzSystem:
+    """
+    Hardware Abstraction Layer (HAL) for the Teraflash THz-TDS system.
+
+    Notes
+    -----
+    This class intentionally mirrors the Teraflash ASCII control protocol
+    verbatim. Some commands include literal printf-style format tokens
+    (e.g. '%.1f', '%d') which are required by the instrument firmware and
+    must not be interpreted or substituted on the host side.
+
+    See:
+        - docs/TF_PRO-RC-Commands-UDP-v22p1.pdf
+        - docs/TF_PRO_RemoteDataAcquisition-TCP_v22p1.pdf
+    """
 
     UDP_CMD_PORT = 61234
     UDP_RX_PORT = 61235
@@ -165,31 +181,50 @@ class TeraflashTHzSystem:
 
         if not self._udp_tx or not self._udp_rx:
             raise RuntimeError("Simulated THz system is not connected.")
+        
+        try:
+            run_state = self.get_run_state()
+            if run_state != "ON":
+                warnings.warn(
+                    "Acquiring trace while RUN state is OFF",
+                    RuntimeWarning,
+                )
+        except Exception:
+            # Never let warnings break acquisition
+            pass
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(self.timeout)
-        sock.connect((self.host, self.TCP_SYNC_PORT))
+        try: 
+            sock.settimeout(self.timeout)
+            sock.connect((self.host, self.TCP_SYNC_PORT))
 
-        # first packet: 6-byte length
-        length_bytes = self._recv_exact(sock, 6)
-        length = int(length_bytes.decode("ascii"))
+            # first packet: 6-byte length
+            length_bytes = self._recv_exact(sock, 6)
+            length = int(length_bytes.decode("ascii"))
+            
+            # Prevent glitches: reject packets with invalid length
+            if length <= 0 or length > 10_000_000:
+                raise ValueError(f"Invalid TCP payload length: {length}")
 
-        # second packet: CSV payload
-        payload = self._recv_exact(sock, length).decode("utf-8")
-        sock.close()
+            # second packet: CSV payload
+            payload = self._recv_exact(sock, length).decode("utf-8")
 
-        return self._parse_trace(payload)
+            return self._parse_trace(payload)
+        
+        finally:
+            sock.close()
     
+    # --- TCP Helpers ---
+
     def _recv_exact(self, sock, nbytes: int) -> bytes:
         data = b""
         while len(data) < nbytes:
-            chunck = sock.recv(nbytes - len(data))
-            if not chunck:
+            chunk = sock.recv(nbytes - len(data))
+            if not chunk:
                 raise RuntimeError("TCP connection closed prematurely")
-            data += chunck
+            data += chunk
         return data
     
-    # --- Data parsing ---
     def _parse_trace(self, csv_text: str) -> dict:
         # Split lines (CRLF as per documentation)
         lines = csv_text.strip().split("\r\n")
@@ -221,28 +256,45 @@ class TeraflashTHzSystem:
         h = header.lower()
         h = h.replace("/", "_")
         return h
+    
+    # --- Complex methods ---
+    def acquire_averaged_trace(self, timeout_s: float | None = None):
+        # Estimate timeout if not provided
+        if timeout_s is None:
+            try:
+                tac_time = self.get_tactime_s()
+                timeout_s = max(self.timeout, 2.0 * tac_time + 3.0)
+            except Exception:
+                # Fallback if estimation fails
+                timeout_s = self.timeout
+                warnings.warn(
+                    "Failed to read TAC.TIME; falling back to default timeout",
+                    RuntimeWarning,
+                )
 
+        # Reset averaging and start countdown
+        self.auto_on()
 
+        # Wait until firmware signals completion (WAIT ON)
+        t0 = time.monotonic()
+        while True:
+            try:
+                if self.get_wait_state() == "ON":
+                    break
+            except Exception:
+                pass
 
-    # --- Scheduled for deprecation ---
-    def _parse_trace_old(self, csv_text: str) -> dict:
-        lines = csv_text.strip().split("\r\n")
-        header = lines.pop(0)
+            if time.monotonic() - t0 > timeout_s:
+                raise TimeoutError(
+                    f"Timeout waiting for averaging to complete (WAIT ON)"
+                )
+            
+            time.sleep(0.1)
 
-        cols = [line.split(",") for line in lines]
-        arr = np.array(cols, dtype=float)
+        # Acquire the completed averaged trace
+        trace = self.acquire_trace()
 
-        result = {
-            "header": header,
-            "time_ps": arr[:, 0],
-            "signal_ch1": arr[:, 1],
-        }
+        # Release WAIT state for next acquisition
+        self.wait_off()
 
-        if arr.shape[1] > 2:
-            result["ref_ch1"] = arr[:, 2]
-        if arr.shape[1] > 3:
-            result["signal_ch2"] = arr[:, 3]
-        if arr.shape[1] > 4:
-            result["ref_ch2"] = arr[:, 4]
-
-        return result
+        return trace

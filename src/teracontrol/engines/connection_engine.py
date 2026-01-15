@@ -1,7 +1,3 @@
-import time
-import numpy as np
-
-
 class ConnectionEngine:
     """Manages connection state for a set of instruments."""
 
@@ -28,3 +24,6 @@ class ConnectionEngine:
     def disconnect(self, name: str):
         self.instruments[name].disconnect()
         self.connected[name] = False
+
+    def status(self) -> dict:
+        return dict(self.connected)
