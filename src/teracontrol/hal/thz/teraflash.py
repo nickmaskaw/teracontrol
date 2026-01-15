@@ -215,7 +215,6 @@ class TeraflashTHzSystem:
 
         # Keep original raw headers for reference
         result["_raw_header"] = headers
-
         return result
     
     def _normalize_header(self, header: str) -> str:
