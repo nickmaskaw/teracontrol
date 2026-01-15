@@ -3,7 +3,6 @@ from teracontrol.engines.experiment_worker import ExperimentWorker
 
 from teracontrol.config.loader import load_config, save_config
 
-from teracontrol.hal.thz.simulated import SimulatedTHzSystem
 from teracontrol.hal.thz.teraflash import TeraflashTHzSystem
 
 from teracontrol.experiments.livestream_experiment import LiveStreamExperiment
