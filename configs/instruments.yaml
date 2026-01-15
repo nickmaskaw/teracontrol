@@ -3,10 +3,3 @@ THz System:
   address_pattern: <ip>
   addresses:
   - 127.0.0.1
-  name: Toptica TeraFlash PRO
-  ports:
-    udp_cmd: 61234
-    udp_rx: 61235
-    udp_tx: 61237
-    tcp_sync: 6007
-    timeout: 5.0

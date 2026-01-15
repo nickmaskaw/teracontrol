@@ -15,13 +15,11 @@ class AppController:
         self.instrument_config_path = instrument_config_path
         self.instrument_config = load_config(instrument_config_path)
 
-        self.connection_engine = ConnectionEngine(
-            instruments={
-                "THz System": TeraflashTHzSystem(self.instrument_config["THz System"]["ports"]),
-            }
-        )
+        self.instruments = {
+            "THz System": TeraflashTHzSystem(),
+        }
 
-        self.thz_system = self.connection_engine.instruments["THz System"]
+        self.connection_engine = ConnectionEngine(self.instruments)
 
         self.experiment = None
         self.worker = None
@@ -35,6 +33,7 @@ class AppController:
         text = f"{name} ({address}) connected" if ok else f"Failed to connect {name} ({address})"   
         self.update_status(text)
         print(text)
+
         if ok and address != self.instrument_config[name]["address_preset"]:
             self.instrument_config[name]["address_preset"] = address
             if not address in self.instrument_config[name]["addresses"]:
@@ -56,7 +55,7 @@ class AppController:
             return
         
         self.experiment = LiveStreamExperiment(
-            thz_system=self.thz_system,
+            thz_system=self.instruments["THz System"],
             on_new_trace=self.update_trace,
         )
 

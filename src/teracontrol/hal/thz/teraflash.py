@@ -190,8 +190,43 @@ class TeraflashTHzSystem:
         return data
     
     # --- Data parsing ---
+    def _parce_trace(self, csv_text: str) -> dict:
+        # Split lines (CRLF as per documentation)
+        lines = csv_text.strip().split("\r\n")
 
-    def _parse_trace(self, csv_text: str) -> dict:
+        # Parse header
+        headers = [h.strip() for h in lines.pop(0).split(",")]
+
+        # Parse numeric data
+        data = [line.split(",") for line in lines[1:]]
+        arr = np.array(data, dtype=float)
+
+        if arr.shape[1] != len(headers):
+            raise ValueError(
+                f"Column mismatch: header has {len(headers)} columns, "
+                f"data has {arr.shape[1]}"
+            )
+        
+        # Build result dictionary dinamically
+        result = {}
+        for i, name in enumerate(headers):
+            key = self._normalize_header(name)
+            result[key] = arr[:, i]
+
+        # Keep original raw headers for reference
+        result["_raw_header"] = headers
+
+        return result
+    
+    def _normalize_header(self, header: str) -> str:
+        h = header.lower()
+        h = h.replace("/", "_")
+        return h
+
+
+
+    # --- Scheduled for deprecation ---
+    def _parse_trace_old(self, csv_text: str) -> dict:
         lines = csv_text.strip().split("\r\n")
         header = lines.pop(0)
 
