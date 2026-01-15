@@ -190,7 +190,7 @@ class TeraflashTHzSystem:
         return data
     
     # --- Data parsing ---
-    def _parce_trace(self, csv_text: str) -> dict:
+    def _parse_trace(self, csv_text: str) -> dict:
         # Split lines (CRLF as per documentation)
         lines = csv_text.strip().split("\r\n")
 

@@ -14,7 +14,7 @@ class THzLiveStreamEngine:
 
         while self._running:
             trace = self.thz_system.acquire_trace()
-            self.on_new_trace(trace["time_ps"], trace["signal_ch1"])
+            self.on_new_trace(trace["time_ps"], trace["signal1_na"])
             time.sleep(0.25)
 
     def stop(self):
