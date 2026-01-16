@@ -2,6 +2,7 @@ from typing import Callable
 import numpy as np
 
 from teracontrol.hal.teraflash import TeraflashTHzSystem
+from teracontrol.hal.itc import ITCTempController
 
 from teracontrol.engines.connection_engine import ConnectionEngine
 from teracontrol.workers.experiment_worker import ExperimentWorker
@@ -33,6 +34,7 @@ class AppController:
         # --- HAL instances ---
         self.instruments = {
             self.THZ: TeraflashTHzSystem(),
+            self.TEMP: ITCTempController(),
         }
 
         # --- Engines ---

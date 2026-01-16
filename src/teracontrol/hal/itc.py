@@ -32,12 +32,13 @@ class ITCTempController:
             print(self.idn())
         
         except Exception:
+            self.sock.close()
             self.sock = None
             raise
 
     def disconnect(self) -> None:
         if self.sock is not None:
-            self.sock.disconnect()
+            self.sock.close()
             self.sock = None
 
     # ------------------------------------------------------------------
