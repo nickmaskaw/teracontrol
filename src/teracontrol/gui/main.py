@@ -7,6 +7,7 @@ from teracontrol.app.controller import AppController
 from teracontrol.gui.connection_widget import ConnectionWidget
 from teracontrol.gui.livemonitor_widget import LiveMonitorWidget
 from teracontrol.gui.livestream_experiment_widget import LiveStreamExperimentWidget
+from teracontrol.gui.mercury_query_test_widget import MercuryQueryTestWidget
 from teracontrol.gui.dock_widget import DockWidget
 
 
@@ -27,16 +28,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage("Ready")
         
         # --- Controller ---
-        self.controller = AppController(
-            update_status=self.update_status,
-            update_trace=self.update_trace,
-        )
+        self.controller = AppController()
 
         # --- Widgets ---
         self.connection_widget = ConnectionWidget(
             config=self.controller.instrument_config,
         )
         self.livestream_experiment_widget = LiveStreamExperimentWidget()
+        self.itc_query_test_widget = MercuryQueryTestWidget()
         self.livemonitor_widget = LiveMonitorWidget()
         
         # --- Docks ---
@@ -50,6 +49,11 @@ class MainWindow(QtWidgets.QMainWindow):
             parent=self,
             widget=self.livestream_experiment_widget,
         )
+        self.itc_query_test_dock = DockWidget(
+            name="ITC Query Test",
+            parent=self,
+            widget=self.itc_query_test_widget,
+        )
 
         self.setCentralWidget(self.livemonitor_widget)
 
@@ -59,6 +63,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.livestream_experiment_widget.run_requested.connect(self.run_callback)
         self.livestream_experiment_widget.stop_requested.connect(self.stop_callback)
+
+        self.itc_query_test_widget.query_requested.connect(self.itc_query_test_callback)
+
+        self.controller.status_updated.connect(self.update_status)
+        self.controller.trace_updated.connect(self.update_trace)
+        self.controller.itc_response_updated.connect(self.itc_response_callback)
 
     # ------------------------------------------------------------------
     # GUI Callbacks (user intent)
@@ -79,6 +89,12 @@ class MainWindow(QtWidgets.QMainWindow):
     def stop_callback(self) -> None:
         self.controller.stop_livestream()
         self.livestream_experiment_widget.set_running(False)
+
+    def itc_query_test_callback(self, query: str) -> None:
+        self.controller.send_itc_query(query)
+
+    def itc_response_callback(self, response: str) -> None:
+        self.itc_query_test_widget.set_response(response)
 
     # ------------------------------------------------------------------
     # Controller -> GUI callbacks

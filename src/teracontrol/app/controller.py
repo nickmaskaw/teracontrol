@@ -1,35 +1,39 @@
 from typing import Callable
 import numpy as np
 
+from PySide6 import QtCore
+
 from teracontrol.hal.teraflash import TeraflashTHzSystem
 from teracontrol.hal.itc import ITCTempController
 
 from teracontrol.engines.connection_engine import ConnectionEngine
+from teracontrol.engines.mercury_query_test_engine import MercuryQueryTestEngine
 from teracontrol.workers.experiment_worker import ExperimentWorker
 
 from teracontrol.config.loader import load_config, save_config
 
 from teracontrol.experiments.livestream_experiment import LiveStreamExperiment
 
-class AppController:
-    """Manages the application state and logic."""
+class AppController(QtCore.QObject):
+    """
+    Central application controller.
+    Owns experiment state and mediates between GUI and HAL.
+    """
     INSTRUMENT_CONFIG_PATH = "./configs/instruments.yaml"
 
     THZ = "THz System"
     TEMP = "Temperature Controller"
     FIELD = "Field Controller"
 
-    def __init__(
-            self,
-            update_status: Callable[[str], None],
-            update_trace: Callable[[np.ndarray, np.ndarray], None],
-        ):        
+    # --- Signals (Controller -> GUI) ---
+    status_updated = QtCore.Signal(str)
+    trace_updated = QtCore.Signal(np.ndarray, np.ndarray)
+    itc_response_updated = QtCore.Signal(str)
+
+    def __init__(self):
+        super().__init__()
         # --- Configuration ---
         self.instrument_config = load_config(self.INSTRUMENT_CONFIG_PATH)
-
-        # --- UI callbacks ---
-        self.update_status = update_status
-        self.update_trace = update_trace
 
         # --- HAL instances ---
         self.instruments = {
@@ -39,6 +43,10 @@ class AppController:
 
         # --- Engines ---
         self.connection_engine = ConnectionEngine(self.instruments)
+        self.itc_query_test_engine = MercuryQueryTestEngine(
+            self.instruments[self.TEMP],
+            self._on_itc_response,
+        )
 
         self.experiment = None
         self.worker = None
@@ -51,15 +59,15 @@ class AppController:
     def connect_instrument(self, name: str, address: str) -> bool:
         # Guard against simultaneous connection attempts
         if name in self._connecting:
-            self.update_status(f"{name}: connection already in progress")
+            self.status_updated.emit(f"{name}: connection already in progress")
             return False
 
         self._connecting.add(name)
         try:
-            self.update_status(f"{name}: connecting to {address}...")
+            self.status_updated.emit(f"{name}: connecting to {address}...")
             ok = self.connection_engine.connect(name, address)
 
-            self.update_status(
+            self.status_updated.emit(
                 f"{name} (address: {address}) connected"
                 if ok
                 else f"Failed to connect {name} (address: {address})\n"
@@ -78,11 +86,11 @@ class AppController:
 
     def disconnect_instrument(self, name: str) -> None:
         if name in self._connecting:
-            self.update_status(f"{name}: cannot disconnect while connecting")
+            self.status_updated.emit(f"{name}: cannot disconnect while connecting")
             return
         
         self.connection_engine.disconnect(name)
-        self.update_status(f"{name} disconnected")
+        self.status_updated.emit(f"{name} disconnected")
 
     # --- Livestream control ---
 
@@ -92,13 +100,13 @@ class AppController:
         
         self.experiment = LiveStreamExperiment(
             thz_system=self.instruments[self.THZ],
-            on_new_trace=self.update_trace,
+            on_new_trace=self._on_new_trace,
         )
 
         self.worker = ExperimentWorker(self.experiment)
         self.worker.finished.connect(self._on_experiment_finished)
 
-        self.update_status("Running livestream")
+        self.status_updated.emit("Running livestream")
         self.worker.start()
         return True
 
@@ -111,8 +119,21 @@ class AppController:
         self.worker.wait()
 
         self.worker = None
-        self.update_status("Connected")
+        self.status_updated.emit("Connected")
 
     def _on_experiment_finished(self):
         self.worker = None
-        self.update_status("Connected")
+        self.status_updated.emit("Connected")
+
+    def _on_new_trace(self, time: np.ndarray, signal: np.ndarray):
+        self.trace_updated.emit(time, signal)
+
+    # ------------------------------------------------------------------
+    # ITC query test
+    # ------------------------------------------------------------------
+
+    def send_itc_query(self, query: str) -> None:
+        self.itc_query_test_engine.query(query)
+
+    def _on_itc_response(self, response: str) -> None:
+        self.itc_response_updated.emit(response)
