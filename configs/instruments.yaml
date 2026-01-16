@@ -1,5 +1,11 @@
 THz System:
-  address_preset: 127.0.0.1
-  address_pattern: <ip>
-  addresses:
-  - 127.0.0.1
+  address_hint: <ip>
+  address: 127.0.0.1
+
+Temp Controller:
+  address_hint: <ip>
+  address: 192.168.1.2
+
+Field Controller:
+  address_hint: <ip>
+  address: 192.168.1.3

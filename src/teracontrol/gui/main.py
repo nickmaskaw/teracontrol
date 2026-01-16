@@ -12,7 +12,6 @@ class MainWindow(QtWidgets.QMainWindow):
     """Application main window and entry point."""
     
     APP_NAME = "TeraControl 0.1.0"
-    INSTRUMENT_CONFIG_PATH = "./configs/instruments.yaml"
 
     def __init__(self):
         super().__init__()
@@ -24,7 +23,6 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # --- Controller ---
         self.controller = AppController(
-            instrument_config_path=self.INSTRUMENT_CONFIG_PATH,
             update_status=self.update_status,
             update_trace=self.update_trace,
         )
@@ -32,7 +30,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # --- Widgets ---
         self.connection_widget = ConnectionWidget(
             config=self.controller.instrument_config,
-            config_path=self.INSTRUMENT_CONFIG_PATH,
         )
         self.livestream_experiment_widget = LiveStreamExperimentWidget()
         self.livemonitor_widget = LiveMonitorWidget()

@@ -78,8 +78,11 @@ class ConnectionEngine:
         """
         Return the last connection error for an instrument, if any.
         """
-        self._check_name(name)
-        return self.last_error[name]
+        try:
+            self._check_name(name)
+            return self.last_error[name]
+        except Exception as e:
+            return e
 
     # --- Internal helpers ---
 
