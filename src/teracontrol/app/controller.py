@@ -4,10 +4,11 @@ import numpy as np
 from PySide6 import QtCore
 
 from teracontrol.hal.teraflash import TeraflashTHzSystem
-from teracontrol.hal.itc import ITCTempController
+from teracontrol.hal.generic_mercury import GenericMercuryController
 
 from teracontrol.engines.connection_engine import ConnectionEngine
 from teracontrol.engines.mercury_query_test_engine import MercuryQueryTestEngine
+from teracontrol.engines.query_engine import QueryEngine
 from teracontrol.workers.experiment_worker import ExperimentWorker
 
 from teracontrol.config.loader import load_config, save_config
@@ -28,7 +29,7 @@ class AppController(QtCore.QObject):
     # --- Signals (Controller -> GUI) ---
     status_updated = QtCore.Signal(str)
     trace_updated = QtCore.Signal(np.ndarray, np.ndarray)
-    itc_response_updated = QtCore.Signal(str)
+    query_response_updated = QtCore.Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -38,14 +39,15 @@ class AppController(QtCore.QObject):
         # --- HAL instances ---
         self.instruments = {
             self.THZ: TeraflashTHzSystem(),
-            self.TEMP: ITCTempController(),
+            self.TEMP: GenericMercuryController(name="ITC"),
+            self.FIELD: GenericMercuryController(name="IPS"),
         }
 
         # --- Engines ---
         self.connection_engine = ConnectionEngine(self.instruments)
-        self.itc_query_test_engine = MercuryQueryTestEngine(
-            self.instruments[self.TEMP],
-            self._on_itc_response,
+        self.query_engine = QueryEngine(
+            self.instruments,
+            self._on_query_response,
         )
 
         self.experiment = None
@@ -132,8 +134,8 @@ class AppController(QtCore.QObject):
     # ITC query test
     # ------------------------------------------------------------------
 
-    def send_itc_query(self, query: str) -> None:
-        self.itc_query_test_engine.query(query)
+    def send_query(self, name: str, query: str) -> None:
+        self.query_engine.query(name, query)
 
-    def _on_itc_response(self, response: str) -> None:
-        self.itc_response_updated.emit(response)
+    def _on_query_response(self, response: str) -> None:
+        self.query_response_updated.emit(response)

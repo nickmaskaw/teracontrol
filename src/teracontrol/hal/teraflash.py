@@ -108,6 +108,16 @@ class TeraflashTHzSystem:
     def _read(self, cmd: str) -> str:
         # ToDo: implement some kind of parsing
         return self._send_command(cmd)
+    
+    # ------------------------------------------------------------------
+    # Debug tools
+    # ------------------------------------------------------------------
+
+    def query(self, command: str) -> str:
+        response = self._send_command(command)
+        print(f"Query: {command}")
+        print(f"Response: {response}")
+        return response
 
     # ------------------------------------------------------------------
     # System control
