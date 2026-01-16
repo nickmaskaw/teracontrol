@@ -1,7 +1,7 @@
 from typing import Callable
 import numpy as np
 
-from teracontrol.hal.thz.teraflash import TeraflashTHzSystem
+from teracontrol.hal.teraflash import TeraflashTHzSystem
 
 from teracontrol.engines.connection_engine import ConnectionEngine
 from teracontrol.workers.experiment_worker import ExperimentWorker
@@ -15,23 +15,14 @@ class AppController:
     INSTRUMENT_CONFIG_PATH = "./configs/instruments.yaml"
 
     THZ = "THz System"
+    TEMP = "Temperature Controller"
+    FIELD = "Field Controller"
 
     def __init__(
             self,
             update_status: Callable[[str], None],
             update_trace: Callable[[np.ndarray, np.ndarray], None],
-        ):
-        """
-        Parameters
-        ----------
-        instrument_config_path : str
-            Path to the instrument configuration file.
-        update_status : Callable[[str], None]
-            Callback to update the status bar.
-        update_trace : Callable[[np.ndarray, np.ndarray], None]
-            Callback to update the live monitor.
-        """
-        
+        ):        
         # --- Configuration ---
         self.instrument_config = load_config(self.INSTRUMENT_CONFIG_PATH)
 

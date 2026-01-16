@@ -31,7 +31,9 @@ class TeraflashTHzSystem:
         self._udp_tx = None
         self._udp_rx = None
 
-    # --- Connection handling ---
+    # ------------------------------------------------------------------
+    # Connection handling
+    # ------------------------------------------------------------------
 
     def connect(self, address_ip: str = "127.0.0.1") -> None:
         """Open UDP sockets and bind to ports."""
@@ -78,7 +80,9 @@ class TeraflashTHzSystem:
         finally:
             self._udp_rx.settimeout(self.timeout)
     
-    # --- UDP control layer ---
+    # ------------------------------------------------------------------
+    # UDP control layer
+    # ------------------------------------------------------------------
 
     def _send_command(self, cmd: str) -> str:
         """Send a raw RC/RD command and return the response string."""
@@ -105,7 +109,9 @@ class TeraflashTHzSystem:
         # ToDo: implement some kind of parsing
         return self._send_command(cmd)
 
-    # --- System control ---
+    # ------------------------------------------------------------------
+    # System control
+    # ------------------------------------------------------------------
     
     def laser_on(self):
         self._expect_ok(self._send_command("RC-LASER : ON"))
@@ -137,7 +143,9 @@ class TeraflashTHzSystem:
     def auto_off(self):
         self._expect_ok(self._send_command("RC-AUTO : OFF"))
 
-    # --- Acquisition settings ---
+    # ------------------------------------------------------------------
+    # Acquisition settings
+    # ------------------------------------------------------------------
     
     def set_begin_ps(self, value: float):
         self._expect_ok(self._send_command(f"RC-BEGIN %.1f {value}"))
@@ -148,7 +156,9 @@ class TeraflashTHzSystem:
     def set_average_points(self, value: int):
         self._expect_ok(self._send_command(f"RC-AVERAGE %d {value}"))
 
-    # --- Read commands ---
+    # ------------------------------------------------------------------
+    # Read commands
+    # ------------------------------------------------------------------
 
     def get_amplitude_nA(self) -> float:
         return float(self._read("RD-AMPLITUDE"))
@@ -181,7 +191,9 @@ class TeraflashTHzSystem:
     def get_auto_state(self) -> str:
         return self._read("RD-AUTO")
     
-    # --- TCP acquisition layer (sync) ---
+    # ------------------------------------------------------------------
+    # TCP acquisition layer (sync)
+    # ------------------------------------------------------------------
 
     def acquire_trace(self):
         """Acquire a single synchronous time-domain trace."""
@@ -221,7 +233,9 @@ class TeraflashTHzSystem:
         finally:
             sock.close()
     
-    # --- TCP Helpers ---
+    # ------------------------------------------------------------------
+    # TCP Helpers
+    # ------------------------------------------------------------------
 
     def _recv_exact(self, sock, nbytes: int) -> bytes:
         data = b""
@@ -264,7 +278,10 @@ class TeraflashTHzSystem:
         h = h.replace("/", "_")
         return h
     
-    # --- Complex methods ---
+    # ------------------------------------------------------------------
+    # Complex methods
+    # ------------------------------------------------------------------
+
     def acquire_averaged_trace(self, timeout_s: float | None = None):
         # Estimate timeout if not provided
         if timeout_s is None:
