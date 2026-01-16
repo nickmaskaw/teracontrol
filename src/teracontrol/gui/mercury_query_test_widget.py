@@ -10,9 +10,10 @@ class MercuryQueryTestWidget(QtWidgets.QWidget):
 
         self.query = QtWidgets.QLineEdit()
         self.button = QtWidgets.QPushButton("Query")
-        self.response = QtWidgets.QLineEdit()
+        self.response = QtWidgets.QTextEdit()
         
         self.response.setReadOnly(True)
+        self.response.font().setFamily("Monospace")
 
         query_row = QtWidgets.QHBoxLayout()
         query_row.addWidget(self.query)
