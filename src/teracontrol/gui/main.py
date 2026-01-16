@@ -1,25 +1,30 @@
 import sys
 import numpy as np
-from PySide6 import QtWidgets, QtCore
+
+from PySide6 import QtWidgets
 
 from teracontrol.app.controller import AppController
-
 from teracontrol.gui.connection_widget import ConnectionWidget
 from teracontrol.gui.livemonitor_widget import LiveMonitorWidget
 from teracontrol.gui.livestream_experiment_widget import LiveStreamExperimentWidget
+from teracontrol.gui.dock_widget import DockWidget
+
 
 class MainWindow(QtWidgets.QMainWindow):
-    """Application main window and entry point."""
-    
-    APP_NAME = "TeraControl 0.1.0"
+    """
+    Application main window and entry point.
+    """
+    APP_NAME = "TeraControl 0.1.0-dev"
+    WIN_SIZE = (1200, 800)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
-        # --- Definitions ---
+        # --- Window setup ---
         self.setWindowTitle(self.APP_NAME)
-        self.resize(1200, 800)
+        self.resize(*self.WIN_SIZE)
         self.window_menu = self.menuBar().addMenu("&Window")
+        self.statusBar().showMessage("Ready")
         
         # --- Controller ---
         self.controller = AppController(
@@ -34,74 +39,63 @@ class MainWindow(QtWidgets.QMainWindow):
         self.livestream_experiment_widget = LiveStreamExperimentWidget()
         self.livemonitor_widget = LiveMonitorWidget()
         
-        # --- Placement ---
+        # --- Docks ---
         self.connection_dock = DockWidget(
-            name='Connection',
+            name="Connection",
             parent=self,
             widget=self.connection_widget,
         )
         self.livestream_dock = DockWidget(
-            name='Livestream',
+            name="Livestream",
             parent=self,
             widget=self.livestream_experiment_widget,
         )
+
         self.setCentralWidget(self.livemonitor_widget)
 
-        # --- Wiring ---
+        # --- Wiring (signals -> callbacks) ---
         self.connection_widget.connect_requested.connect(self.connection_callback)
         self.connection_widget.disconnect_requested.connect(self.disconnection_callback)
 
         self.livestream_experiment_widget.run_requested.connect(self.run_callback)
         self.livestream_experiment_widget.stop_requested.connect(self.stop_callback)
 
-        # --- Fake test data ---
-        t = np.linspace(-10, 10, 1024)
-        # fake THz pulse
-        noise = 0.02 * np.random.normal(size=1024)
-        signal = np.exp(-t**2) * np.cos(2 * np.pi * 0.5 * t)
-        self.livemonitor_widget.update_trace(t, signal+noise)
+    # ------------------------------------------------------------------
+    # GUI Callbacks (user intent)
+    # ------------------------------------------------------------------
 
-    # --- GUI callbacks ---
-
-    def connection_callback(self, name: str, address: str):
+    def connection_callback(self, name: str, address: str) -> None:
         ok = self.controller.connect_instrument(name, address)
         self.connection_widget.set_connected(name, ok)
 
-    def disconnection_callback(self, name: str):
+    def disconnection_callback(self, name: str) -> None:
         self.controller.disconnect_instrument(name)
         self.connection_widget.set_connected(name, False)
 
-    def run_callback(self):
+    def run_callback(self) -> None:
         ok = self.controller.run_livestream()
         self.livestream_experiment_widget.set_running(ok)
 
-    def stop_callback(self):
+    def stop_callback(self) -> None:
         self.controller.stop_livestream()
         self.livestream_experiment_widget.set_running(False)
 
-    # --- GUI helpers ---
+    # ------------------------------------------------------------------
+    # Controller -> GUI callbacks
+    # ------------------------------------------------------------------
 
-    def update_status(self, message: str):
+    def update_status(self, message: str) -> None:
         self.statusBar().showMessage(message)
 
-    def update_trace(self, time, signal):
+    def update_trace(
+        self,
+        time: np.ndarray,
+        signal: np.ndarray,
+    ) -> None:
         self.livemonitor_widget.update_trace(time, signal)
 
 
-class DockWidget(QtWidgets.QDockWidget):
-    def __init__(self, name, parent, widget):
-        super().__init__(name, parent)
-        self.name = name
-        self.parent = parent
-        self.widget = widget
-
-        self.setWidget(self.widget)
-        self.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea)
-        self.parent.addDockWidget(QtCore.Qt.LeftDockWidgetArea, self)
-        self.parent.window_menu.addAction(self.toggleViewAction())
-
-
-def main():
+def main() -> None:
     app = QtWidgets.QApplication(sys.argv)
     window = MainWindow()
     window.show()
