@@ -29,7 +29,7 @@ class AppController(QtCore.QObject):
     # --- Signals (Controller -> GUI) ---
     status_updated = QtCore.Signal(str)
     trace_updated = QtCore.Signal(np.ndarray, np.ndarray)
-    query_response_updated = QtCore.Signal(str)
+    query_response_updated = QtCore.Signal(str, str, str)
 
     def __init__(self):
         super().__init__()
@@ -137,5 +137,5 @@ class AppController(QtCore.QObject):
     def send_query(self, name: str, query: str) -> None:
         self.query_engine.query(name, query)
 
-    def _on_query_response(self, response: str) -> None:
-        self.query_response_updated.emit(response)
+    def _on_query_response(self, name: str, query: str,response: str) -> None:
+        self.query_response_updated.emit(name, query, response)

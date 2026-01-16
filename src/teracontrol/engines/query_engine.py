@@ -17,4 +17,4 @@ class QueryEngine:
 
     def query(self, name: str, query: str):
         response = self.instruments[name].query(query)
-        self.on_response(response)
+        self.on_response(name, query, response)

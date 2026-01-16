@@ -57,8 +57,8 @@ class QueryWidget(QtWidgets.QWidget):
     def _on_return_pressed(self, name: str):
         self._on_button_clicked(name)
 
-    def update_response(self, name: str, response: str):
-        self.response.appendPlainText(f"{name}: {response}")
+    def update_response(self, name: str, query: str,response: str):
+        self.response.appendPlainText(f"{name}:\n    Query: {query}\n    Response: {response}\n")
         self._waiting[name] = False
 
             

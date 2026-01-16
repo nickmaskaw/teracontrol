@@ -96,8 +96,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def query_callback(self, name: str, query: str) -> None:
         self.controller.send_query(name, query)
 
-    def response_callback(self, name: str, response: str) -> None:
-        self.query_widget.update_response(name, response)
+    def response_callback(self, name: str, query: str, response: str) -> None:
+        self.query_widget.update_response(name, query, response)
 
     # ------------------------------------------------------------------
     # Controller -> GUI callbacks
