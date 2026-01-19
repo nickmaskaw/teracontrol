@@ -31,8 +31,8 @@ class AppController(QtCore.QObject):
     trace_updated = QtCore.Signal(np.ndarray, np.ndarray)
     query_response_updated = QtCore.Signal(str, str, str)
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, parent: QtCore.QObject | None = None):
+        super().__init__(parent)
         # --- Configuration ---
         self.instrument_config = load_config(self.INSTRUMENT_CONFIG_PATH)
 

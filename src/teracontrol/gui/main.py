@@ -16,22 +16,37 @@ class MainWindow(QtWidgets.QMainWindow):
     """
     Application main window and entry point.
     """
+
     APP_NAME = "TeraControl 0.1.0-dev"
     WIN_SIZE = (1200, 800)
 
     def __init__(self) -> None:
         super().__init__()
 
-        # --- Window setup ---
+        self._setup_window()
+        self._setup_controller()
+        self._setup_widgets()
+        self._setup_docks()
+        self._connect_signals()
+
+    # ------------------------------------------------------------------
+    # Setup
+    # ------------------------------------------------------------------
+    
+    def _setup_window(self) -> None:
         self.setWindowTitle(self.APP_NAME)
         self.resize(*self.WIN_SIZE)
-        self.window_menu = self.menuBar().addMenu("&Window")
-        self.statusBar().showMessage("Ready")
         
-        # --- Controller ---
-        self.controller = AppController()
+        self.window_menu = self.menuBar().addMenu("&Window")
+        self.debug_menu = self.menuBar().addMenu("&Debug")
 
-        # --- Widgets ---
+        self.statusBar().showMessage("Ready")
+
+    def _setup_controller(self) -> None:
+        # Parented to the main window to avoid premature garbage collection
+        self.controller = AppController(parent=self)
+
+    def _setup_widgets(self) -> None:
         self.connection_widget = ConnectionWidget(
             config=self.controller.instrument_config,
         )
@@ -40,73 +55,81 @@ class MainWindow(QtWidgets.QMainWindow):
             config=self.controller.instrument_config,
         )
         self.livemonitor_widget = LiveMonitorWidget()
-        
-        # --- Docks ---
+
+        self.setCentralWidget(self.livemonitor_widget)
+
+    def _setup_docks(self) -> None:
         self.connection_dock = DockWidget(
             name="Connection",
             parent=self,
             widget=self.connection_widget,
+            menu=self.window_menu,
         )
         self.livestream_dock = DockWidget(
             name="Livestream",
             parent=self,
             widget=self.livestream_experiment_widget,
+            menu=self.window_menu,
         )
         self.query_dock = DockWidget(
             name="Query",
             parent=self,
             widget=self.query_widget,
+            menu=self.debug_menu,
+            set_floating=True,
         )
 
-        self.setCentralWidget(self.livemonitor_widget)
+    def _connect_signals(self) -> None:
+        # --- Connection ---
+        self.connection_widget.connect_requested.connect(self._on_connect)
+        self.connection_widget.disconnect_requested.connect(self._on_disconnect)
 
-        # --- Wiring (signals -> callbacks) ---
-        self.connection_widget.connect_requested.connect(self.connection_callback)
-        self.connection_widget.disconnect_requested.connect(self.disconnection_callback)
+        # --- Livestream ---
+        self.livestream_experiment_widget.run_requested.connect(self._on_run)
+        self.livestream_experiment_widget.stop_requested.connect(self._on_stop)
 
-        self.livestream_experiment_widget.run_requested.connect(self.run_callback)
-        self.livestream_experiment_widget.stop_requested.connect(self.stop_callback)
-        
-        self.query_widget.query_requested.connect(self.query_callback)
+        # --- Query ---
+        self.query_widget.query_requested.connect(self._on_query)
 
-        self.controller.status_updated.connect(self.update_status)
-        self.controller.trace_updated.connect(self.update_trace)
-        self.controller.query_response_updated.connect(self.response_callback)
+        # --- Controller -> GUI ---
+        self.controller.status_updated.connect(self._on_status_updated)
+        self.controller.trace_updated.connect(self._on_trace_updated)
+        self.controller.query_response_updated.connect(self._on_query_response)
 
     # ------------------------------------------------------------------
-    # GUI Callbacks (user intent)
+    # GUI -> Controller callbacks (user intent)
     # ------------------------------------------------------------------
 
-    def connection_callback(self, name: str, address: str) -> None:
+    def _on_connect(self, name: str, address: str) -> None:
         ok = self.controller.connect_instrument(name, address)
         self.connection_widget.set_connected(name, ok)
 
-    def disconnection_callback(self, name: str) -> None:
+    def _on_disconnect(self, name: str) -> None:
         self.controller.disconnect_instrument(name)
         self.connection_widget.set_connected(name, False)
 
-    def run_callback(self) -> None:
+    def _on_run(self) -> None:
         ok = self.controller.run_livestream()
         self.livestream_experiment_widget.set_running(ok)
 
-    def stop_callback(self) -> None:
+    def _on_stop(self) -> None:
         self.controller.stop_livestream()
         self.livestream_experiment_widget.set_running(False)
 
-    def query_callback(self, name: str, query: str) -> None:
+    def _on_query(self, name: str, query: str) -> None:
         self.controller.send_query(name, query)
-
-    def response_callback(self, name: str, query: str, response: str) -> None:
-        self.query_widget.update_response(name, query, response)
 
     # ------------------------------------------------------------------
     # Controller -> GUI callbacks
     # ------------------------------------------------------------------
 
-    def update_status(self, message: str) -> None:
+    def _on_query_response(self, name: str, query: str, response: str) -> None:
+        self.query_widget.update_response(name, query, response)
+    
+    def _on_status_updated(self, message: str) -> None:
         self.statusBar().showMessage(message)
 
-    def update_trace(
+    def _on_trace_updated(
         self,
         time: np.ndarray,
         signal: np.ndarray,

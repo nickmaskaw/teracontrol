@@ -10,11 +10,19 @@ class DockWidget(QtWidgets.QDockWidget):
         name: str,
         parent: QtWidgets.QMainWindow,
         widget: QtWidgets.QWidget,
+        menu: QtWidgets.QMenu | None = None,
+        set_floating: bool = False,
     ) -> None:
         super().__init__(name, parent)
         
         self.setWidget(widget)
-        self.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea)
-
-        parent.addDockWidget(QtCore.Qt.LeftDockWidgetArea, self)
-        parent.window_menu.addAction(self.toggleViewAction())
+        if set_floating:
+            self.setFloating(True)
+            self.hide()
+            self.setAllowedAreas(QtCore.Qt.NoDockWidgetArea)
+        else:
+            self.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea)
+            parent.addDockWidget(QtCore.Qt.LeftDockWidgetArea, self)
+        
+        if menu is not None:
+            menu.addAction(self.toggleViewAction())
