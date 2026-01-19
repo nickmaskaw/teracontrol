@@ -18,6 +18,7 @@ class DockWidget(QtWidgets.QDockWidget):
         self.setWidget(widget)
         if set_floating:
             self.setFloating(True)
+            self.resize(parent.WIN_SIZE[0]/2, parent.WIN_SIZE[1]/2)
             self.hide()
             self.setAllowedAreas(QtCore.Qt.NoDockWidgetArea)
         else:

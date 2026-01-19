@@ -7,7 +7,6 @@ from teracontrol.app.controller import AppController
 from teracontrol.gui.connection_widget import ConnectionWidget
 from teracontrol.gui.livemonitor_widget import LiveMonitorWidget
 from teracontrol.gui.livestream_experiment_widget import LiveStreamExperimentWidget
-from teracontrol.gui.mercury_query_test_widget import MercuryQueryTestWidget
 from teracontrol.gui.query_widget import QueryWidget
 from teracontrol.gui.dock_widget import DockWidget
 
@@ -50,7 +49,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.connection_widget = ConnectionWidget(
             config=self.controller.instrument_config,
         )
-        self.livestream_experiment_widget = LiveStreamExperimentWidget()
         self.query_widget = QueryWidget(
             config=self.controller.instrument_config,
         )
@@ -65,12 +63,6 @@ class MainWindow(QtWidgets.QMainWindow):
             widget=self.connection_widget,
             menu=self.window_menu,
         )
-        self.livestream_dock = DockWidget(
-            name="Livestream",
-            parent=self,
-            widget=self.livestream_experiment_widget,
-            menu=self.window_menu,
-        )
         self.query_dock = DockWidget(
             name="Query",
             parent=self,
@@ -83,10 +75,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # --- Connection ---
         self.connection_widget.connect_requested.connect(self._on_connect)
         self.connection_widget.disconnect_requested.connect(self._on_disconnect)
-
-        # --- Livestream ---
-        self.livestream_experiment_widget.run_requested.connect(self._on_run)
-        self.livestream_experiment_widget.stop_requested.connect(self._on_stop)
 
         # --- Query ---
         self.query_widget.query_requested.connect(self._on_query)
@@ -107,14 +95,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_disconnect(self, name: str) -> None:
         self.controller.disconnect_instrument(name)
         self.connection_widget.set_connected(name, False)
-
-    def _on_run(self) -> None:
-        ok = self.controller.run_livestream()
-        self.livestream_experiment_widget.set_running(ok)
-
-    def _on_stop(self) -> None:
-        self.controller.stop_livestream()
-        self.livestream_experiment_widget.set_running(False)
 
     def _on_query(self, name: str, query: str) -> None:
         self.controller.send_query(name, query)

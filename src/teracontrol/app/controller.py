@@ -7,9 +7,8 @@ from teracontrol.hal.teraflash import TeraflashTHzSystem
 from teracontrol.hal.generic_mercury import GenericMercuryController
 
 from teracontrol.engines.connection_engine import ConnectionEngine
-from teracontrol.engines.mercury_query_test_engine import MercuryQueryTestEngine
 from teracontrol.engines.query_engine import QueryEngine
-from teracontrol.workers.experiment_worker import ExperimentWorker
+from teracontrol.workers.experiment_worker_old import ExperimentWorker
 
 from teracontrol.config.loader import load_config, save_config
 
