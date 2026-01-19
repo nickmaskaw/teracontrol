@@ -2,6 +2,7 @@ import socket
 import warnings
 import time
 import numpy as np
+from typing import Any, Optional
 
 
 class TeraflashTHzSystem:
@@ -25,8 +26,9 @@ class TeraflashTHzSystem:
     UDP_TX_PORT = 61237
     TCP_SYNC_PORT = 6007
 
-    def __init__(self, timeout_s: float = 15.0):
+    def __init__(self, timeout_s: float = 15.0, channel: int = 1):
         self.timeout = timeout_s
+        self.channel = channel
         self.host: str = ""
         self._udp_tx = None
         self._udp_rx = None
@@ -129,10 +131,14 @@ class TeraflashTHzSystem:
     def laser_off(self):
         self._expect_ok(self._send_command("RC-LASER : OFF"))
 
-    def emitter_on(self, channel: int = 1):
+    def emitter_on(self, channel: Optional[int] = None):
+        if channel is None:
+            channel = self.channel
         self._expect_ok(self._send_command(f"RC-VOLT{channel} : ON"))
 
-    def emitter_off(self, channel: int = 1):
+    def emitter_off(self, channel: Optional[int] = None):
+        if channel is None:
+            channel = self.channel
         self._expect_ok(self._send_command(f"RC-VOLT{channel} : OFF"))
 
     def run(self):
@@ -208,7 +214,7 @@ class TeraflashTHzSystem:
     def acquire_trace(self):
         """Acquire a single synchronous time-domain trace."""
 
-        if not self._udp_tx or not self._udp_rx:
+        if not self.is_connected:
             raise RuntimeError("Simulated THz system is not connected.")
         
         try:
@@ -332,3 +338,44 @@ class TeraflashTHzSystem:
         self.wait_off()
 
         return trace
+    
+    # ------------------------------------------------------------------
+    # Status
+    # ------------------------------------------------------------------
+
+    def get_status(self, channel: Optional[int] = None) -> dict[str, Any]:
+        """Return the status of the instrument."""
+        if channel is None:
+            channel = self.channel
+        
+        return {
+            "connected": self.is_connected(),
+            "running": self.is_running(channel=channel),
+            "begin_ps": self.get_begin_ps(),
+            "range_ps": self.get_range_ps(),
+            "average_points": self.get_average_points(),
+            "amplitude_nA": self.get_amplitude_nA(),
+        }
+    
+    def is_connected(self) -> bool:
+        """Return True if the instrument is connected."""
+        return (self._udp_tx is not None) and (self._udp_rx is not None)
+    
+    def is_running(self, channel: Optional[int] = None) -> bool:
+        """Return true if:
+        
+        - Laser state is ON
+        - Emitter state is ON
+        - Run state is ON
+        """
+        if channel is None:
+            channel = self.channel
+
+        if not self.is_connected:
+            return False
+        
+        return (
+            self.get_laser_state() == "ON"
+            and self.get_emitter_state(channel=channel) == "ON"
+            and self.get_run_state() == "ON"
+        )
