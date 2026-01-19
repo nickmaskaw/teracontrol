@@ -4,8 +4,10 @@ import time
 import numpy as np
 from typing import Any, Optional
 
+from teracontrol.hal.base import BaseHAL
 
-class TeraflashTHzSystem:
+
+class TeraflashTHzSystem(BaseHAL):
     """
     Hardware Abstraction Layer (HAL) for the Teraflash THz-TDS system.
 
@@ -27,7 +29,7 @@ class TeraflashTHzSystem:
     TCP_SYNC_PORT = 6007
 
     def __init__(self, timeout_s: float = 15.0, channel: int = 1):
-        self.timeout = timeout_s
+        super().__init__(timeout_s)
         self.channel = channel
         self.host: str = ""
         self._udp_tx = None

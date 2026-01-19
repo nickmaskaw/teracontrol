@@ -1,10 +1,12 @@
 import socket
-from typing import Optional
+from typing import Optional, Any
+
+from teracontrol.hal.base import BaseHAL
 
 
 # Implement dataclass??
 
-class GenericMercuryController:
+class GenericMercuryController(BaseHAL):
     """
     Hardware Abstraction layer (HAL) for the ITC Temperature Controller.
     """
@@ -74,3 +76,17 @@ class GenericMercuryController:
         print(f"Query: {command}")
         print(f"Response: {response}")
         return response
+    
+    # ------------------------------------------------------------------
+    # Status
+    # ------------------------------------------------------------------
+
+    def get_status(self) -> dict[str, Any]:
+        """Return the status of the instrument."""
+        return {
+            "connected": self.is_connected(),
+        }
+    
+    def is_connected(self) -> bool:
+        """Return True if the instrument is connected."""
+        return (self.sock is not None)
