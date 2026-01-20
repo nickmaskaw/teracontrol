@@ -352,9 +352,8 @@ class TeraflashTHzSystem(BaseHAL):
     # Status
     # ------------------------------------------------------------------
 
-    @property
     def status(self) -> dict[str, Any]:
-        """Return the status of the instrument."""
+        """Acquire a snapshot of the instrument status."""
 
         return {
             "connected": self.is_connected(),

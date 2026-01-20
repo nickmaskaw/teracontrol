@@ -1,16 +1,18 @@
+from typing import Any
+
 from teracontrol.hal.generic_mercury import GenericMercuryController
 
 
-class MercuryITCController(GenericMercuryController):
+class MercuryIPSController(GenericMercuryController):
     """
-    Hardware Abstraction layer (HAL) for a Mercury ITC controller.
+    Hardware Abstraction layer (HAL) for a Mercury IPS controller.
     """
     capabilities = {
         "temperature": True,
-        "heater": True,
-        "pressure": True,
-        "nvalve": True,
-        "magnet": False,
+        "heater": False,
+        "pressure": False,
+        "nvalve": False,
+        "magnet": True,
     }
 
     def __init__(self, timeout_s: float = 5.0):
