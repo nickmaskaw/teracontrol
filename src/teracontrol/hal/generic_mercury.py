@@ -4,8 +4,6 @@ from typing import Optional, Any
 from teracontrol.hal.base import BaseHAL
 
 
-# Implement dataclass??
-
 class GenericMercuryController(BaseHAL):
     """
     Hardware Abstraction layer (HAL) for the ITC Temperature Controller.
@@ -105,8 +103,22 @@ class GenericMercuryController(BaseHAL):
             "firmware_version": response[4].strip(),
         }
 
-    def get_devices(self) -> dict[str, str]:
+    def list_devices(self) -> dict[str, str]:
         """Return a dictionary of device names and IDs."""
         response = self._send_command("READ:SYS:CAT").split(":DEV:")[1:]
         device_list = [r.split(":") for r in response]
         return {d[0]: d[1] for d in device_list}
+    
+    def get_device_name(self, device_id: str, device_type: str) -> str:
+        """Return the nickname of a device."""
+        _id = device_id.strip().upper()
+        _type = device_type.strip().upper()
+        response = self._send_command(f"READ:DEV:{_id}:{_type}:NICK").split(":")
+        return response[-1].strip()
+    
+    def get_temperature_K(self, device_id: str) -> float:
+        """Return the temperature of a device in Kelvin."""
+        _id = device_id.strip().upper()
+        response = self._send_command(f"READ:DEV:{_id}:TEMP:SIG:TEMP").split(":")
+        return float(response[-1].split('K')[0].strip())
+    
