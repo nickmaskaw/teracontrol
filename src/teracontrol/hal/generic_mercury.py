@@ -134,8 +134,11 @@ class GenericMercuryController(BaseHAL):
     
     def get_temperature_dict(self) -> dict[str, float]:
         """Return a dictionary of temperature sensors and their values."""
+        temp_devices = [
+            name for name in self.devices if self.devices[name].split(":")[1] == "TEMP"
+        ]
+
         return {
             name: self.read_device_temperature_K(self.devices[name])
-            for name in self.devices
-            if self.devices[name].split(":")[1] == "TEMP"
+            for name in self.temp_devices
         }
