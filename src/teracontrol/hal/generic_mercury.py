@@ -87,7 +87,8 @@ class GenericMercuryController(BaseHAL):
     # Status
     # ------------------------------------------------------------------
 
-    def get_status(self) -> dict[str, Any]:
+    @property
+    def status(self) -> dict[str, Any]:
         """Return the status of the instrument."""
         return {
             "connected": self.is_connected(),
@@ -129,16 +130,13 @@ class GenericMercuryController(BaseHAL):
             )
             return None
         
-        response = self._send_command(f"READ:DV:{device_id}:TEMP:SIG:TEMP")
+        response = self._send_command(f"READ:DEV:{device_id}:SIG:TEMP")
         return float(response.split(":")[-1].split('K')[0])
     
     def get_temperature_dict(self) -> dict[str, float]:
         """Return a dictionary of temperature sensors and their values."""
-        temp_devices = [
-            name for name in self.devices if self.devices[name].split(":")[1] == "TEMP"
-        ]
-
         return {
             name: self.read_device_temperature_K(self.devices[name])
-            for name in self.temp_devices
+            for name in self.devices
+            if self.devices[name].split(":")[1] == "TEMP"
         }

@@ -51,8 +51,7 @@ class TeraflashTHzSystem(BaseHAL):
 
             self._udp_tx.bind((self.host, self.UDP_TX_PORT))
 
-            # --- ACTIVE verification ---
-            self._probe()
+            self._probe()  # Ensure connection is active
 
         except Exception:
             # Ensure partial sockets don't linger
@@ -67,7 +66,6 @@ class TeraflashTHzSystem(BaseHAL):
         if self._udp_rx is not None:
             self._udp_rx.close()
             self._udp_rx = None
-        #print("Disconnected from Teraflash THz system")
 
     def _probe(self, short_timeout: float = 1.0) -> None:
         """
@@ -92,16 +90,18 @@ class TeraflashTHzSystem(BaseHAL):
         """Send a raw RC/RD command and return the response string."""
 
         if not self._udp_tx or not self._udp_rx:
-            raise RuntimeError("Not connected to Teraflash THz system")
+            warnings.warn(
+                "Not connected to Teraflash THz system. Returning empty string.",
+                RuntimeWarning
+            )
+            return ""
         
         # --- Send a command ---
         self._udp_tx.sendto(cmd.encode("ascii"), (self.host, self.UDP_CMD_PORT))    
-        #print(f"Sending {cmd} to Teraflash THz system")
 
         # --- Receive a response ---
         data, _ = self._udp_rx.recvfrom(1024)
         response = data.decode("ascii").strip()
-        #print(f"Received {response} from Teraflash THz system")
         return response
     
     def _expect_ok(self, response: str):
@@ -109,9 +109,16 @@ class TeraflashTHzSystem(BaseHAL):
         if not response.startswith("OK"):
             raise RuntimeError(f"Teraflash error: {response}")
 
-    def _read(self, cmd: str) -> str:
-        # ToDo: implement some kind of parsing
-        return self._send_command(cmd)
+    def _read(self, cmd: str, astype: type = str) -> Any:
+        response = self._send_command(cmd)
+        try:
+            return astype(response)
+        except Exception:
+            warnings.warn(
+                f"Failed to parse response {response} as {astype.__name__}",
+                RuntimeWarning,
+            )
+            return response
     
     # ------------------------------------------------------------------
     # Debug tools
@@ -127,38 +134,38 @@ class TeraflashTHzSystem(BaseHAL):
     # System control
     # ------------------------------------------------------------------
     
-    def laser_on(self):
+    def set_laser_on(self):
         self._expect_ok(self._send_command("RC-LASER : ON"))
 
-    def laser_off(self):
+    def set_laser_off(self):
         self._expect_ok(self._send_command("RC-LASER : OFF"))
 
-    def emitter_on(self, channel: Optional[int] = None):
+    def set_emitter_on(self, channel: Optional[int] = None):
         if channel is None:
             channel = self.channel
         self._expect_ok(self._send_command(f"RC-VOLT{channel} : ON"))
 
-    def emitter_off(self, channel: Optional[int] = None):
+    def set_emitter_off(self, channel: Optional[int] = None):
         if channel is None:
             channel = self.channel
         self._expect_ok(self._send_command(f"RC-VOLT{channel} : OFF"))
 
-    def run(self):
+    def set_run_on(self):
         self._expect_ok(self._send_command("RC-RUN : ON"))
     
-    def stop(self):
+    def set_run_off(self):
         self._expect_ok(self._send_command("RC-RUN : OFF"))
 
-    def wait_on(self):
+    def set_wait_on(self):
         self._expect_ok(self._send_command("RC-WAIT : ON"))
 
-    def wait_off(self):
+    def set_wait_off(self):
         self._expect_ok(self._send_command("RC-WAIT : OFF"))
 
-    def auto_on(self):
+    def set_auto_on(self):
         self._expect_ok(self._send_command("RC-AUTO : ON"))
 
-    def auto_off(self):
+    def set_auto_off(self):
         self._expect_ok(self._send_command("RC-AUTO : OFF"))
 
     # ------------------------------------------------------------------
@@ -178,35 +185,35 @@ class TeraflashTHzSystem(BaseHAL):
     # Read commands
     # ------------------------------------------------------------------
 
-    def get_amplitude_nA(self) -> float:
-        return float(self._read("RD-AMPLITUDE"))
+    def read_amplitude_nA(self) -> float:
+        return self._read("RD-AMPLITUDE", astype=float)
     
-    def get_tactime_s(self) -> float:
+    def read_tactime_s(self) -> float:
         """Return the estimated total aquisition time of averaged traces."""
-        return float(self._read("RD-TAC.TIME"))
+        return self._read("RD-TAC.TIME", astype=float)
     
-    def get_laser_state(self) -> str:
+    def read_laser_state(self) -> str:
         return self._read("RD-LASER")
     
-    def get_emitter_state(self, channel: int = 1) -> str:
+    def read_emitter_state(self, channel: int = 1) -> str:
         return self._read(f"RD-VOLT{channel}")
     
-    def get_run_state(self) -> str:
+    def read_run_state(self) -> str:
         return self._read("RD-RUN")
     
-    def get_begin_ps(self) -> float:
-        return float(self._read("RD-BEGIN"))
+    def read_begin_ps(self) -> float:
+        return self._read("RD-BEGIN", astype=float)
     
-    def get_range_ps(self) -> int:
-        return int(self._read("RD-RANGE"))
+    def read_range_ps(self) -> int:
+        return self._read("RD-RANGE", astype=int)
     
-    def get_average_points(self) -> int:
-        return int(self._read("RD-AVERAGE"))
+    def read_average_points(self) -> int:
+        return self._read("RD-AVERAGE", astype=int)
 
-    def get_wait_state(self) -> str:
+    def read_wait_state(self) -> str:
         return self._read("RD-WAIT")
     
-    def get_auto_state(self) -> str:
+    def read_auto_state(self) -> str:
         return self._read("RD-AUTO")
     
     # ------------------------------------------------------------------
@@ -220,7 +227,7 @@ class TeraflashTHzSystem(BaseHAL):
             raise RuntimeError("Simulated THz system is not connected.")
         
         try:
-            run_state = self.get_run_state()
+            run_state = self.read_run_state()
             if run_state != "ON":
                 warnings.warn(
                     "Acquiring trace while RUN state is OFF",
@@ -304,7 +311,7 @@ class TeraflashTHzSystem(BaseHAL):
         # Estimate timeout if not provided
         if timeout_s is None:
             try:
-                tac_time = self.get_tactime_s()
+                tac_time = self.read_tactime_s()
                 timeout_s = max(self.timeout, 2.0 * tac_time + 3.0)
             except Exception:
                 # Fallback if estimation fails
@@ -315,13 +322,13 @@ class TeraflashTHzSystem(BaseHAL):
                 )
 
         # Reset averaging and start countdown
-        self.auto_on()
+        self.set_auto_on()
 
         # Wait until firmware signals completion (WAIT ON)
         t0 = time.monotonic()
         while True:
             try:
-                if self.get_wait_state() == "ON":
+                if self.read_wait_state() == "ON":
                     break
             except Exception:
                 pass
@@ -337,7 +344,7 @@ class TeraflashTHzSystem(BaseHAL):
         trace = self.acquire_trace()
 
         # Release WAIT state for next acquisition
-        self.wait_off()
+        self.set_wait_off()
 
         return trace
     
@@ -345,18 +352,15 @@ class TeraflashTHzSystem(BaseHAL):
     # Status
     # ------------------------------------------------------------------
 
-    def get_status(self, channel: Optional[int] = None) -> dict[str, Any]:
+    @property
+    def status(self) -> dict[str, Any]:
         """Return the status of the instrument."""
-        if channel is None:
-            channel = self.channel
-        
+
         return {
             "connected": self.is_connected(),
-            "running": self.is_running(channel=channel),
-            "begin_ps": self.get_begin_ps(),
-            "range_ps": self.get_range_ps(),
-            "average_points": self.get_average_points(),
-            "amplitude_nA": self.get_amplitude_nA(),
+            "running": self.is_running(),
+            "average_points": self.read_average_points(),
+            "amplitude_nA": self.read_amplitude_nA(),
         }
     
     def is_connected(self) -> bool:
@@ -377,7 +381,7 @@ class TeraflashTHzSystem(BaseHAL):
             return False
         
         return (
-            self.get_laser_state() == "ON"
-            and self.get_emitter_state(channel=channel) == "ON"
-            and self.get_run_state() == "ON"
+            self.read_laser_state() == "ON"
+            and self.read_emitter_state(channel=channel) == "ON"
+            and self.read_run_state() == "ON"
         )

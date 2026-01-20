@@ -30,7 +30,8 @@ class BaseHAL(ABC):
         """Send a query to the instrument and return the response."""
         pass
 
+    @property
     @abstractmethod
-    def get_status(self) -> dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         """Return the status of the instrument."""
         pass
