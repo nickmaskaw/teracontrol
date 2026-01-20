@@ -90,3 +90,23 @@ class GenericMercuryController(BaseHAL):
     def is_connected(self) -> bool:
         """Return True if the instrument is connected."""
         return (self.sock is not None)
+    
+    # ------------------------------------------------------------------
+    # Read commands
+    # ------------------------------------------------------------------
+
+    def idn(self) -> str:
+        """Return the instrument IDN."""
+        response = self._send_command("*IDN?").split(":")
+        return {
+            "manufacturer": response[1].strip(),
+            "instrument": response[2].strip(),
+            "serial_number": response[3].strip(),
+            "firmware_version": response[4].strip(),
+        }
+
+    def get_devices(self) -> dict[str, str]:
+        """Return a dictionary of device names and IDs."""
+        response = self._send_command("READ:SYS:CAT").split(":DEV:")[1:]
+        device_list = [r.split(":") for r in response]
+        return {d[0]: d[1] for d in device_list}
