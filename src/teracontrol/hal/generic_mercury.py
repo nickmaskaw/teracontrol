@@ -1,4 +1,5 @@
 import socket
+import warnings
 from typing import Optional, Any
 
 from teracontrol.hal.base import BaseHAL
@@ -6,7 +7,10 @@ from teracontrol.hal.base import BaseHAL
 
 class GenericMercuryController(BaseHAL):
     """
-    Hardware Abstraction layer (HAL) for the ITC Temperature Controller.
+    Hardware Abstraction layer (HAL) for a Generic Mercury controller.
+
+    This class is a generic implementation of the HAL interface.
+    It is intended to be subclassed for specific instruments.
     """
     PORT = 7020
 
@@ -20,6 +24,7 @@ class GenericMercuryController(BaseHAL):
         self.host: str = ""
         self.sock: Optional[socket.socket] = None
         self._rx_buffer = b""
+        self.devices: dict[str, str] = {}
 
     # ------------------------------------------------------------------
     # Connection handling
@@ -34,6 +39,8 @@ class GenericMercuryController(BaseHAL):
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.settimeout(self.timeout)
             self.sock.connect((self.host, self.PORT))
+
+            self.devices = self.get_devices()
         
         except Exception:
             self.sock.close()
@@ -44,6 +51,7 @@ class GenericMercuryController(BaseHAL):
         if self.sock is not None:
             self.sock.close()
             self.sock = None
+            self.devices = {}
 
     # ------------------------------------------------------------------
     # Low-level I/O
@@ -83,6 +91,7 @@ class GenericMercuryController(BaseHAL):
         """Return the status of the instrument."""
         return {
             "connected": self.is_connected(),
+            "temperatures": self.get_temperature_dict(),
         }
     
     def is_connected(self) -> bool:
@@ -103,22 +112,30 @@ class GenericMercuryController(BaseHAL):
             "firmware_version": response[4].strip(),
         }
 
-    def list_devices(self) -> dict[str, str]:
-        """Return a dictionary of device names and IDs."""
-        response = self._send_command("READ:SYS:CAT").split(":DEV:")[1:]
-        device_list = [r.split(":") for r in response]
-        return {d[0]: d[1] for d in device_list}
+    def get_devices(self) -> dict[str, str]:
+        """Return a dictionary of device names and IDS."""
+        ids = self._send_command("READ:SYS:CAT").split(":DEV:")[1:]
+        names = [
+            self._send_command(f"READ:DEV:{id}:NICK").split(":")[-1] for id in ids
+        ]
+        return dict(zip(names, ids))
     
-    def get_device_name(self, device_id: str, device_type: str) -> str:
-        """Return the nickname of a device."""
-        _id = device_id.strip().upper()
-        _type = device_type.strip().upper()
-        response = self._send_command(f"READ:DEV:{_id}:{_type}:NICK").split(":")
-        return response[-1].strip()
-    
-    def get_temperature_K(self, device_id: str) -> float:
+    def read_device_temperature_K(self, device_id: str) -> float:
         """Return the temperature of a device in Kelvin."""
-        _id = device_id.strip().upper()
-        response = self._send_command(f"READ:DEV:{_id}:TEMP:SIG:TEMP").split(":")
-        return float(response[-1].split('K')[0].strip())
+        if device_id.split(":")[1] != "TEMP":
+            warnings.warn(
+                f"Device {device_id} is not a temperature sensor",
+                RuntimeWarning,
+            )
+            return None
+        
+        response = self._send_command(f"READ:DV:{device_id}:TEMP:SIG:TEMP")
+        return float(response.split(":")[-1].split('K')[0])
     
+    def get_temperature_dict(self) -> dict[str, float]:
+        """Return a dictionary of temperature sensors and their values."""
+        return {
+            name: self.read_device_temperature_K(self.devices[name])
+            for name in self.devices
+            if self.devices[name].split(":")[1] == "TEMP"
+        }
