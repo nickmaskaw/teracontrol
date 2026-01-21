@@ -11,7 +11,9 @@ from teracontrol.gui.livestream_experiment_widget import LiveStreamExperimentWid
 from teracontrol.gui.query_widget import QueryWidget
 from teracontrol.gui.dock_widget import DockWidget
 
-from teracontrol.utils.logging import setup_logging
+from teracontrol.utils.logging import setup_logging, get_logger
+
+log = get_logger(__name__)
 
 class MainWindow(QtWidgets.QMainWindow):
     """
@@ -120,11 +122,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 def main() -> None:
-    setup_logging()
-    app = QtWidgets.QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec())
+    setup_logging(
+        level=logging.INFO,
+        logfile=f"logs/teracontrol.log"
+    )
+    
+    log.info("=== Application started ===")
+    try:
+        app = QtWidgets.QApplication(sys.argv)
+        window = MainWindow()
+        window.show()
+        sys.exit(app.exec())
+    finally:
+        log.info("=== Application exited ===")
 
 
 if __name__ == "__main__":

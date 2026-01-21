@@ -270,9 +270,9 @@ class TeraflashTHzSystem(BaseHAL):
     # ------------------------------------------------------------------
 
     def query(self, command: str) -> str:
+        log.info(f"Query: {command}")
         response = self._send_command(command)
-        print(f"Query: {command}")
-        print(f"Response: {response}")
+        log.info(f"Response: {response}")
         return response
 
     # ------------------------------------------------------------------

@@ -1,5 +1,6 @@
 from PySide6 import QtWidgets, QtCore
 
+# TODO: fix: if query fails, button remains dumb
 
 class QueryWidget(QtWidgets.QWidget):
     
