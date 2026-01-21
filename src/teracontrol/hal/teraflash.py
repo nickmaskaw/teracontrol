@@ -2,7 +2,7 @@ import socket
 import warnings
 import time
 import numpy as np
-from typing import Any, Optional
+from typing import Any, Callable
 
 from teracontrol.hal.base import BaseHAL
 
@@ -55,7 +55,7 @@ class TeraflashTHzSystem(BaseHAL):
 
         except Exception:
             # Ensure partial sockets don't linger
-            self.disconnect
+            self.disconnect()
             raise
 
     def disconnect(self) -> None:
@@ -90,19 +90,12 @@ class TeraflashTHzSystem(BaseHAL):
         """Send a raw RC/RD command and return the response string."""
 
         if not self.is_connected():
-            warnings.warn(
-                "Not connected to Teraflash THz system. Returning empty string.",
-                RuntimeWarning
-            )
-            return ""
+            raise RuntimeError("Not connected to Teraflash THz system.")
         
-        # --- Send a command ---
         self._udp_tx.sendto(cmd.encode("ascii"), (self.host, self.UDP_CMD_PORT))    
 
-        # --- Receive a response ---
         data, _ = self._udp_rx.recvfrom(1024)
-        response = data.decode("ascii").strip()
-        return response
+        return data.decode("ascii").strip()
     
     def _expect_ok(self, response: str):
         """Raise an exception if the response is not OK."""
@@ -116,8 +109,8 @@ class TeraflashTHzSystem(BaseHAL):
             )
         except Exception as e:
             raise RuntimeError(
-                f"Failed to set {cmd} to {value}\n{e}"
-            )
+                f"Failed to set {cmd} to {value}"
+            ) from e
 
     def _read(self, cmd: str, astype: type = str) -> Any:
         response = self._send_command(cmd)
@@ -137,7 +130,7 @@ class TeraflashTHzSystem(BaseHAL):
     def acquire_trace(self):
         """Acquire a single synchronous time-domain trace."""
 
-        if not self.is_connected:
+        if not self.is_connected():
             raise RuntimeError("Simulated THz system is not connected.")
         
         if not self.is_running():
@@ -370,9 +363,9 @@ class TeraflashTHzSystem(BaseHAL):
             "connected": self.is_connected(),
             "running": self.is_running(),
             "channel": self.channel,
-            "average_points": self.read_average_points(),
-            "tac_time_s": self.read_tactime_s(),
-            "amplitude_nA": self.read_amplitude_nA(),
+            "average_points": self._safe(self.read_average_points),
+            "tac_time_s": self._safe(self.read_tactime_s),
+            "amplitude_nA": self._safe(self.read_amplitude_nA),
         }
     
     def is_connected(self) -> bool:
@@ -394,3 +387,9 @@ class TeraflashTHzSystem(BaseHAL):
             and self.read_emitter_state() == "ON"
             and self.read_run_state() == "ON"
         )
+    
+    def _safe(self, fn: Callable[[], Any]) -> Any:
+        try:
+            return fn()
+        except Exception:
+            return None

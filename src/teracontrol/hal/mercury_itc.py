@@ -5,12 +5,12 @@ class MercuryITCController(GenericMercuryController):
     """
     Hardware Abstraction layer (HAL) for a Mercury ITC controller.
     """
-    capabilities = {
-        "temperature": True,
-        "heater": True,
-        "pressure": True,
-        "nvalve": True,
-        "magnet": False,
+    enabled_kinds = {
+        "TEMP": True,
+        "HTR": True,
+        "PRES": True,
+        "AUX": True,
+        "PSU": False,
     }
 
     def __init__(self, timeout_s: float = 5.0):

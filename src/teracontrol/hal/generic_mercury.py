@@ -1,6 +1,6 @@
 import socket
 import warnings
-from typing import Optional, Any
+from typing import Optional, Any, Callable
 
 from teracontrol.hal.base import BaseHAL
 
@@ -14,22 +14,13 @@ class GenericMercuryController(BaseHAL):
     """
     PORT = 7020
 
-    # --- Expected capabilities ---
-    capabilities: dict[str, bool] = {
-        "temperature": True,
-        "heater": True,
-        "pressure": True,
-        "nvalve": True,
-        "magnet": True,
-    }
-
-    # --- Ignored devices ---
-    ignored_devices: dict[str, list[str]] = {
-        "temperature": [],
-        "heater": [],
-        "pressure": [],
-        "nvalve": [],
-        "magnet": [],
+    # --- enabled device kinds ---
+    enabled_kinds: dict[str, bool] = {
+        "TEMP": True,  # Temperatrue controller
+        "HTR": True,   # Heater controller
+        "PRES": True,  # Pressure controller
+        "AUX": True,   # Needle valve controller
+        "PSU": True,   # Magnet power supply controller
     }
 
     def __init__(
@@ -44,13 +35,22 @@ class GenericMercuryController(BaseHAL):
         self._rx_buffer = b""
         self.devices: dict[str, str] = {}
 
+        # --- Ignored devices ---
+        self.ignored_devices: dict[str, list[str]] = {
+            "TEMP": [],
+            "HTR": [],
+            "PRES": [],
+            "AUX": [],
+            "PSU": [],
+        }
+
     # ------------------------------------------------------------------
     # Connection handling
     # ------------------------------------------------------------------
 
     def connect(self, address_ip: str) -> None:
         if self.sock is not None:
-            raise RuntimeError("{self.name} is already connected")
+            raise RuntimeError(f"{self.name} is already connected")
 
         try:
             self.host = address_ip
@@ -61,7 +61,8 @@ class GenericMercuryController(BaseHAL):
             self.devices = self.get_devices()
         
         except Exception:
-            self.sock.close()
+            if self.sock:
+                self.sock.close()
             self.sock = None
             raise
 
@@ -75,28 +76,40 @@ class GenericMercuryController(BaseHAL):
     # Low-level I/O
     # ------------------------------------------------------------------
 
-    def _send_command(self, cmd: str) -> None:
+    def _send_command(self, cmd: str) -> str:
         if not self.sock:
-            raise RuntimeError("Not connected to {self.name}")
+            raise RuntimeError(f"Not connected to {self.name}")
         
         self.sock.sendall((cmd + "\n").encode("ascii"))
 
         while b"\n" not in self._rx_buffer:
             chunk = self.sock.recv(1024)
             if not chunk:
-                raise RuntimeError("{self.name} connection closed by instrument")
+                raise RuntimeError(f"{self.name} connection closed by instrument")
             self._rx_buffer += chunk
 
         line, _, self._rx_buffer = self._rx_buffer.partition(b"\n")
         response = line.decode("ascii").strip()
         return response
     
-    def _read(self, cmd: str) -> Any:
+    def _read(self, cmd: str) -> str:
         response = self._send_command(f"READ:{cmd}")
         return response
     
-    def _read_value(self, cmd: str, astype: type, unit: str = "") -> Any:
-        response = self._read(cmd)
+    def _read_device(
+        self,
+        device_name: str,
+        cmd: str,
+        astype: type, 
+        unit: str = "",
+        expected_kind: Optional[str] = None
+    ) -> Any:
+        device_id = self._get_device_id(device_name)
+
+        if expected_kind is not None:
+            self._check_device_kind(device_id, expected_kind)
+            
+        response = self._read(f"DEV:{device_id}:{cmd}")
         value = response.split(":")[-1]
         
         if unit:
@@ -112,14 +125,16 @@ class GenericMercuryController(BaseHAL):
             )
             return value
         
-    def _wrong_device_kind_warning(self, device_id: str, kind: str) -> bool:
-        """Return True if a warning should be raised for a device."""
-        if device_id.split(":")[1] != kind:
-            warnings.warn(
-                f"Device {device_id} is not '{kind}'",
-                RuntimeWarning,
+    def _check_device_kind(self, device_id: str, expected_kind: str) -> None:
+        actual_kind = device_id.split(":")[1]
+        if actual_kind != expected_kind:
+            raise RuntimeError(
+                f"Device kind mismatch: expected '{expected_kind}', "
+                f"got '{actual_kind}' (device id: {device_id})"
             )
-            return True
+    
+    def _get_device_id(self, device_name: str) -> str:
+        return self.devices[device_name]
     
     # ------------------------------------------------------------------
     # Debug tools
@@ -137,25 +152,44 @@ class GenericMercuryController(BaseHAL):
 
     def status(self) -> dict[str, Any]:
         """Acquire a snapshot of the instrument status."""
+
         status: dict[str, Any] = {
             "connected": self.is_connected(),
         }
 
-        if self.capabilities["temperature"]:
-            status["temperatures_K"] = self.dict_temp_temperatures_K()
+        if self.enabled_kinds["TEMP"]:
+            status["temp.temp_K"] = self._collect(
+                self.read_temperature, "TEMP"
+            )
         
-        if self.capabilities["heater"]:
-            status["heaters_W"] = self.dict_htr_powers_W()
+        if self.enabled_kinds["HTR"]:
+            status["htr.power_W"] = self._collect(
+                self.read_power, "HTR"
+            )
         
-        if self.capabilities["pressure"]:
-            status["pressures_mbar"] = self.dict_pres_pressures_mbar()
+        if self.enabled_kinds["PRES"]:
+            status["pres.pressure_mbar"] = self._collect(
+                self.read_pressure, "PRES"
+            )
         
-        if self.capabilities["nvalve"]:
-            status["nvalves_percent"] = self.dict_aux_nvalves_percent()
+        if self.enabled_kinds["AUX"]:
+            status["aux.nvalve_percent"] = self._collect(
+                self.read_nvalve, "AUX"
+            )
 
-        if self.capabilities["magnet"]:
-            status["fields_T"] = self.dict_psu_fields_T()
-            status["rates_A_per_min"] = self.dict_psu_rates_A_per_min()
+        if self.enabled_kinds["PSU"]:
+            status["psu.field_T"] = self._collect(
+                self.read_field, "PSU"
+            )
+            status["psu.rate_A_per_min"] = self._collect(
+                self.read_field_rate, "PSU"
+            )
+            status["psu.heater"] = self._collect(
+                self.read_magnet_heater, "PSU"
+            )
+            status["psu.status"] = self._collect(
+                self.read_magnet_status, "PSU"
+            )
 
         return status
     
@@ -187,100 +221,59 @@ class GenericMercuryController(BaseHAL):
     
     # --- read devices ---    
     
-    def read_temp_temperature_K(self, device_id: str) -> float:
+    def read_temperature(self, device_name: str) -> float:
         """Return the temperature of a device in Kelvin."""
-        if self._wrong_device_kind_warning(device_id, "TEMP"):
-            return None
+        return self._read_device(
+            device_name, "SIG:TEMP", astype=float, unit="K", expected_kind="TEMP"
+        )  
         
-        return self._read_value(f"DEV:{device_id}:SIG:TEMP", astype=float, unit="K")
-        
-    def read_htr_power_W(self, device_id: str) -> float:
+    def read_power(self, device_name: str) -> float:
         """Return the heater power of a device in Watts."""
-        if self._wrong_device_kind_warning(device_id, "HTR"):
-            return None
-        
-        return self._read_value(f"DEV:{device_id}:SIG:POWR", astype=float, unit="W")
+        return self._read_device(
+            device_name, "SIG:POWR", astype=float, unit="W", expected_kind="HTR"
+        )
     
-    def read_pres_pressure_mbar(self, device_id: str) -> float:
+    def read_pressure(self, device_name: str) -> float:
         """Return the pressure of a device in millibar."""
-        if self._wrong_device_kind_warning(device_id, "PRES"):
-            return None
-        
-        return self._read_value(f"DEV:{device_id}:SIG:PRES", astype=float, unit="mB")
+        return self._read_device(
+            device_name, "SIG:PRES", astype=float, unit="mB", expected_kind="PRES"
+        )
     
-    def read_aux_nvalve_percent(self, device_id: str) -> float:
+    def read_nvalve(self, device_name: str) -> float:
         """Return the percent of a device's needle valve."""
-        if self._wrong_device_kind_warning(device_id, "AUX"):
-            return None
-        
-        return self._read_value(f"DEV:{device_id}:SIG:PERC", astype=float, unit="%")
+        return self._read_device(
+            device_name, "SIG:PERC", astype=float, unit="%", expected_kind="AUX"
+        )
     
-    def read_psu_field_T(self, device_id: str) -> float:
+    def read_field(self, device_name: str) -> float:
         """Return the magnet field strength of a power supply in Tesla."""
-        if self._wrong_device_kind_warning(device_id, "PSU"):
-            return None
-        
-        return self._read_value(f"DEV:{device_id}:SIG:FLD", astype=float, unit="T")
+        return self._read_device(
+            device_name, "SIG:FLD", astype=float, unit="T", expected_kind="PSU"
+        )
     
-    def read_psu_rate_A_per_min(self, device_id: str) -> float:
+    def read_field_rate(self, device_name: str) -> float:
         """Return the current rate of a power supply in Ampere per minute."""
-        if self._wrong_device_kind_warning(device_id, "PSU"):
-            return None
-        
-        return self._read_value(f"DEV:{device_id}:SIG:RCUR", astype=float, unit="A/min")
+        return self._read_device(
+            device_name, "SIG:RCUR", astype=float, unit="A/min", expected_kind="PSU"
+        )
+    
+    def read_magnet_heater(self, device_name: str) -> str:
+        """Return the magnet heater state."""
+        return self._read_device(
+            device_name, "SIG:SWHT", astype=str, expected_kind="PSU"
+        )
+    
+    def read_magnet_status(self, device_name: str) -> str:
+        """Return the magnet status."""
+        return self._read_device(
+            device_name, "ACTN", astype=str, expected_kind="PSU"
+        )
     
     # --- get dictionaries ---
 
-    def dict_temp_temperatures_K(self) -> dict[str, float]:
-        """Return a dictionary of temperature sensors and their values."""
+    def _collect(self, fn: Callable[[str], Any], kind: str) -> dict[str, Any]:
         return {
-            name: self.read_temp_temperature_K(self.devices[name])
-            for name in self.devices
-            if self.devices[name].split(":")[1] == "TEMP"
-            and name not in self.ignored_devices["temperature"]
-        }
-    
-    def dict_htr_powers_W(self) -> dict[str, float]:
-        """Return a dictionary of heater sensors and their values."""
-        return {
-            name: self.read_htr_power_W(self.devices[name])
-            for name in self.devices
-            if self.devices[name].split(":")[1] == "HTR"
-            and name not in self.ignored_devices["heater"]
-        }
-    
-    def dict_pres_pressures_mbar(self) -> dict[str, float]:
-        """Return a dictionary of pressure sensors and their values."""
-        return {
-            name: self.read_pres_pressure_mbar(self.devices[name])
-            for name in self.devices
-            if self.devices[name].split(":")[1] == "PRES"
-            and name not in self.ignored_devices["pressure"]
-        }
-    
-    def dict_aux_nvalves_percent(self) -> dict[str, float]:
-        """Return a dictionary of needle valve sensors and their values."""
-        return {
-            name: self.read_aux_nvalve_percent(self.devices[name])
-            for name in self.devices
-            if self.devices[name].split(":")[1] == "AUX"
-            and name not in self.ignored_devices["nvalve"]
-        }
-    
-    def dict_psu_fields_T(self) -> dict[str, float]:
-        """Return a dictionary of magnet sensors and their values."""
-        return {
-            name: self.read_psu_field_T(self.devices[name])
-            for name in self.devices
-            if self.devices[name].split(":")[1] == "PSU"
-            and name not in self.ignored_devices["magnet"]
-        }
-    
-    def dict_psu_rates_A_per_min(self) -> dict[str, float]:
-        """Return a dictionary of power supply sensors and their values."""
-        return {
-            name: self.read_psu_rate_A_per_min(self.devices[name])
-            for name in self.devices
-            if self.devices[name].split(":")[1] == "PSU"
-            and name not in self.ignored_devices["magnet"]
+            name: fn(name) for name in self.devices
+            if self.devices[name].split(":")[1] == kind
+            and name not in self.ignored_devices[kind]
         }
