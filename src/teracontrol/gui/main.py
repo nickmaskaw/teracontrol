@@ -1,4 +1,5 @@
 import sys
+import logging
 import numpy as np
 
 from PySide6 import QtWidgets
@@ -10,6 +11,7 @@ from teracontrol.gui.livestream_experiment_widget import LiveStreamExperimentWid
 from teracontrol.gui.query_widget import QueryWidget
 from teracontrol.gui.dock_widget import DockWidget
 
+from teracontrol.utils.logging import setup_logging
 
 class MainWindow(QtWidgets.QMainWindow):
     """
@@ -118,6 +120,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 def main() -> None:
+    setup_logging()
     app = QtWidgets.QApplication(sys.argv)
     window = MainWindow()
     window.show()
