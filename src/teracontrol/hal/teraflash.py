@@ -89,7 +89,7 @@ class TeraflashTHzSystem(BaseHAL):
     def _send_command(self, cmd: str) -> str:
         """Send a raw RC/RD command and return the response string."""
 
-        if not self._udp_tx or not self._udp_rx:
+        if not self.is_connected():
             warnings.warn(
                 "Not connected to Teraflash THz system. Returning empty string.",
                 RuntimeWarning
@@ -108,6 +108,16 @@ class TeraflashTHzSystem(BaseHAL):
         """Raise an exception if the response is not OK."""
         if not response.startswith("OK"):
             raise RuntimeError(f"Teraflash error: {response}")
+        
+    def _set(self, cmd: str, value: Any, sep: str = ":"):
+        try:
+            self._expect_ok(
+                self._send_command(f"{cmd.strip()} {sep} {value}")
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to set {cmd} to {value}\n{e}"
+            )
 
     def _read(self, cmd: str, astype: type = str) -> Any:
         response = self._send_command(cmd)
@@ -121,102 +131,6 @@ class TeraflashTHzSystem(BaseHAL):
             return response
     
     # ------------------------------------------------------------------
-    # Debug tools
-    # ------------------------------------------------------------------
-
-    def query(self, command: str) -> str:
-        response = self._send_command(command)
-        print(f"Query: {command}")
-        print(f"Response: {response}")
-        return response
-
-    # ------------------------------------------------------------------
-    # System control
-    # ------------------------------------------------------------------
-    
-    def set_laser_on(self):
-        self._expect_ok(self._send_command("RC-LASER : ON"))
-
-    def set_laser_off(self):
-        self._expect_ok(self._send_command("RC-LASER : OFF"))
-
-    def set_emitter_on(self, channel: Optional[int] = None):
-        if channel is None:
-            channel = self.channel
-        self._expect_ok(self._send_command(f"RC-VOLT{channel} : ON"))
-
-    def set_emitter_off(self, channel: Optional[int] = None):
-        if channel is None:
-            channel = self.channel
-        self._expect_ok(self._send_command(f"RC-VOLT{channel} : OFF"))
-
-    def set_run_on(self):
-        self._expect_ok(self._send_command("RC-RUN : ON"))
-    
-    def set_run_off(self):
-        self._expect_ok(self._send_command("RC-RUN : OFF"))
-
-    def set_wait_on(self):
-        self._expect_ok(self._send_command("RC-WAIT : ON"))
-
-    def set_wait_off(self):
-        self._expect_ok(self._send_command("RC-WAIT : OFF"))
-
-    def set_auto_on(self):
-        self._expect_ok(self._send_command("RC-AUTO : ON"))
-
-    def set_auto_off(self):
-        self._expect_ok(self._send_command("RC-AUTO : OFF"))
-
-    # ------------------------------------------------------------------
-    # Acquisition settings
-    # ------------------------------------------------------------------
-    
-    def set_begin_ps(self, value: float):
-        self._expect_ok(self._send_command(f"RC-BEGIN %.1f {value}"))
-    
-    def set_range_ps(self, value: int):
-        self._expect_ok(self._send_command(f"RC-RANGE %d {value}"))
-
-    def set_average_points(self, value: int):
-        self._expect_ok(self._send_command(f"RC-AVERAGE %d {value}"))
-
-    # ------------------------------------------------------------------
-    # Read commands
-    # ------------------------------------------------------------------
-
-    def read_amplitude_nA(self) -> float:
-        return self._read("RD-AMPLITUDE", astype=float)
-    
-    def read_tactime_s(self) -> float:
-        """Return the estimated total aquisition time of averaged traces."""
-        return self._read("RD-TAC.TIME", astype=float)
-    
-    def read_laser_state(self) -> str:
-        return self._read("RD-LASER")
-    
-    def read_emitter_state(self, channel: int = 1) -> str:
-        return self._read(f"RD-VOLT{channel}")
-    
-    def read_run_state(self) -> str:
-        return self._read("RD-RUN")
-    
-    def read_begin_ps(self) -> float:
-        return self._read("RD-BEGIN", astype=float)
-    
-    def read_range_ps(self) -> int:
-        return self._read("RD-RANGE", astype=int)
-    
-    def read_average_points(self) -> int:
-        return self._read("RD-AVERAGE", astype=int)
-
-    def read_wait_state(self) -> str:
-        return self._read("RD-WAIT")
-    
-    def read_auto_state(self) -> str:
-        return self._read("RD-AUTO")
-    
-    # ------------------------------------------------------------------
     # TCP acquisition layer (sync)
     # ------------------------------------------------------------------
 
@@ -226,16 +140,11 @@ class TeraflashTHzSystem(BaseHAL):
         if not self.is_connected:
             raise RuntimeError("Simulated THz system is not connected.")
         
-        try:
-            run_state = self.read_run_state()
-            if run_state != "ON":
-                warnings.warn(
-                    "Acquiring trace while RUN state is OFF",
-                    RuntimeWarning,
-                )
-        except Exception:
-            # Never let warnings break acquisition
-            pass
+        if not self.is_running():
+            warnings.warn(
+                "Acquiring trace while RUN state is OFF",
+                RuntimeWarning,
+            )
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try: 
@@ -257,10 +166,6 @@ class TeraflashTHzSystem(BaseHAL):
         
         finally:
             sock.close()
-    
-    # ------------------------------------------------------------------
-    # TCP Helpers
-    # ------------------------------------------------------------------
 
     def _recv_exact(self, sock, nbytes: int) -> bytes:
         data = b""
@@ -302,9 +207,105 @@ class TeraflashTHzSystem(BaseHAL):
         h = header.lower()
         h = h.replace("/", "_")
         return h
+
+    # ------------------------------------------------------------------
+    # Debug tools
+    # ------------------------------------------------------------------
+
+    def query(self, command: str) -> str:
+        response = self._send_command(command)
+        print(f"Query: {command}")
+        print(f"Response: {response}")
+        return response
+
+    # ------------------------------------------------------------------
+    # System control
+    # ------------------------------------------------------------------
+    
+    def set_channel(self, channel: int) -> None:
+        if channel not in [1, 2]:
+            raise ValueError(
+                f"Channel {channel} is not supported by this instrument"
+            )
+        
+        self.channel = channel
+    
+    def set_laser_on(self) -> None:
+        self._set("RC-LASER", "ON")
+
+    def set_laser_off(self) -> None:
+        self._set("RC-LASER", "OFF")
+
+    def set_emitter_on(self) -> None:
+        self._set(f"RC-VOLT{self.channel}", "ON")
+
+    def set_emitter_off(self) -> None:
+        self._set(f"RC-VOLT{self.channel}", "OFF")
+
+    def set_run_on(self) -> None:
+        self._set("RC-RUN", "ON")
+    
+    def set_run_off(self) -> None:
+        self._set("RC-RUN", "OFF")
+
+    def set_wait_on(self) -> None:
+        self._set("RC-WAIT", "ON")
+
+    def set_wait_off(self) -> None:
+        self._set("RC-WAIT", "OFF")
+
+    def set_auto_on(self) -> None:
+        self._set("RC-AUTO", "ON")
+
+    def set_auto_off(self) -> None:
+        self._set("RC-AUTO", "OFF")
+    
+    def set_begin_ps(self, value: float) -> None:
+        self._set("RC-BEGIN", value, sep="%.1f")
+    
+    def set_range_ps(self, value: int) -> None:
+        self._set("RC-RANGE", value, sep="%d")
+
+    def set_average_points(self, value: int) -> None:
+        self._set("RC-AVERAGE", value, sep="%d")
+
+    # ------------------------------------------------------------------
+    # Read commands
+    # ------------------------------------------------------------------
+
+    def read_amplitude_nA(self) -> float:
+        return self._read("RD-AMPLITUDE", astype=float)
+    
+    def read_tactime_s(self) -> float:
+        """Return the estimated total aquisition time of averaged traces."""
+        return self._read("RD-TAC.TIME", astype=float)
+    
+    def read_laser_state(self) -> str:
+        return self._read("RD-LASER")
+    
+    def read_emitter_state(self) -> str:
+        return self._read(f"RD-VOLT{self.channel}")
+    
+    def read_run_state(self) -> str:
+        return self._read("RD-RUN")
+    
+    def read_begin_ps(self) -> float:
+        return self._read("RD-BEGIN", astype=float)
+    
+    def read_range_ps(self) -> int:
+        return self._read("RD-RANGE", astype=int)
+    
+    def read_average_points(self) -> int:
+        return self._read("RD-AVERAGE", astype=int)
+
+    def read_wait_state(self) -> str:
+        return self._read("RD-WAIT")
+    
+    def read_auto_state(self) -> str:
+        return self._read("RD-AUTO")
     
     # ------------------------------------------------------------------
-    # Complex methods
+    # High-level methods
     # ------------------------------------------------------------------
 
     def acquire_averaged_trace(self, timeout_s: float | None = None):
@@ -348,6 +349,16 @@ class TeraflashTHzSystem(BaseHAL):
 
         return trace
     
+    def run(self):
+        self.set_laser_on()
+        self.set_emitter_on()
+        self.set_run_on()
+
+    def stop(self):
+        self.set_laser_off()
+        self.set_emitter_off()
+        self.set_run_off()
+
     # ------------------------------------------------------------------
     # Status
     # ------------------------------------------------------------------
@@ -358,7 +369,9 @@ class TeraflashTHzSystem(BaseHAL):
         return {
             "connected": self.is_connected(),
             "running": self.is_running(),
+            "channel": self.channel,
             "average_points": self.read_average_points(),
+            "tac_time_s": self.read_tactime_s(),
             "amplitude_nA": self.read_amplitude_nA(),
         }
     
@@ -366,21 +379,18 @@ class TeraflashTHzSystem(BaseHAL):
         """Return True if the instrument is connected."""
         return (self._udp_tx is not None) and (self._udp_rx is not None)
     
-    def is_running(self, channel: Optional[int] = None) -> bool:
+    def is_running(self) -> bool:
         """Return true if:
         
         - Laser state is ON
         - Emitter state is ON
         - Run state is ON
         """
-        if channel is None:
-            channel = self.channel
-
-        if not self.is_connected:
+        if not self.is_connected():
             return False
         
         return (
             self.read_laser_state() == "ON"
-            and self.read_emitter_state(channel=channel) == "ON"
+            and self.read_emitter_state() == "ON"
             and self.read_run_state() == "ON"
         )

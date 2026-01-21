@@ -15,7 +15,7 @@ class GenericMercuryController(BaseHAL):
     PORT = 7020
 
     # --- Expected capabilities ---
-    capabilities = {
+    capabilities: dict[str, bool] = {
         "temperature": True,
         "heater": True,
         "pressure": True,
@@ -23,6 +23,14 @@ class GenericMercuryController(BaseHAL):
         "magnet": True,
     }
 
+    # --- Ignored devices ---
+    ignored_devices: dict[str, list[str]] = {
+        "temperature": [],
+        "heater": [],
+        "pressure": [],
+        "nvalve": [],
+        "magnet": [],
+    }
 
     def __init__(
         self,
@@ -83,6 +91,36 @@ class GenericMercuryController(BaseHAL):
         response = line.decode("ascii").strip()
         return response
     
+    def _read(self, cmd: str) -> Any:
+        response = self._send_command(f"READ:{cmd}")
+        return response
+    
+    def _read_value(self, cmd: str, astype: type, unit: str = "") -> Any:
+        response = self._read(cmd)
+        value = response.split(":")[-1]
+        
+        if unit:
+            value = value.split(unit)[0]
+        
+        try:
+            return astype(value)
+        
+        except Exception:
+            warnings.warn(
+                f"Failed to parse response {response} as {astype.__name__}",
+                RuntimeWarning,
+            )
+            return value
+        
+    def _wrong_device_kind_warning(self, device_id: str, kind: str) -> bool:
+        """Return True if a warning should be raised for a device."""
+        if device_id.split(":")[1] != kind:
+            warnings.warn(
+                f"Device {device_id} is not '{kind}'",
+                RuntimeWarning,
+            )
+            return True
+    
     # ------------------------------------------------------------------
     # Debug tools
     # ------------------------------------------------------------------
@@ -104,19 +142,20 @@ class GenericMercuryController(BaseHAL):
         }
 
         if self.capabilities["temperature"]:
-            status["temperatures_K"] = self.get_temperature_dict()
+            status["temperatures_K"] = self.dict_temp_temperatures_K()
         
         if self.capabilities["heater"]:
-            status["heaters_W"] = self.get_heater_dict()
+            status["heaters_W"] = self.dict_htr_powers_W()
         
         if self.capabilities["pressure"]:
-            status["pressures_mbar"] = self.get_pressure_dict()
+            status["pressures_mbar"] = self.dict_pres_pressures_mbar()
         
         if self.capabilities["nvalve"]:
-            status["nvalves_percent"] = self.get_nvalve_dict()
+            status["nvalves_percent"] = self.dict_aux_nvalves_percent()
 
         if self.capabilities["magnet"]:
-            status["magnets_T"] = self.get_magnet_dict()
+            status["fields_T"] = self.dict_psu_fields_T()
+            status["rates_A_per_min"] = self.dict_psu_rates_A_per_min()
 
         return status
     
@@ -146,102 +185,102 @@ class GenericMercuryController(BaseHAL):
         ]
         return dict(zip(names, ids))
     
-    def read_device_temperature_K(self, device_id: str) -> float:
+    # --- read devices ---    
+    
+    def read_temp_temperature_K(self, device_id: str) -> float:
         """Return the temperature of a device in Kelvin."""
-        if device_id.split(":")[1] != "TEMP":
-            warnings.warn(
-                f"Device {device_id} is not a temperature sensor",
-                RuntimeWarning,
-            )
+        if self._wrong_device_kind_warning(device_id, "TEMP"):
             return None
         
-        response = self._send_command(f"READ:DEV:{device_id}:SIG:TEMP")
-        return float(response.split(":")[-1].split('K')[0])
-    
-    def read_device_heat_W(self, device_id: str) -> float:
+        return self._read_value(f"DEV:{device_id}:SIG:TEMP", astype=float, unit="K")
+        
+    def read_htr_power_W(self, device_id: str) -> float:
         """Return the heater power of a device in Watts."""
-        if device_id.split(":")[1] != "HTR":
-            warnings.warn(
-                f"Device {device_id} is not a heater",
-                RuntimeWarning,
-            )
+        if self._wrong_device_kind_warning(device_id, "HTR"):
             return None
         
-        response = self._send_command(f"READ:DEV:{device_id}:SIG:POWR")
-        return float(response.split(":")[-1].split('W')[0])
+        return self._read_value(f"DEV:{device_id}:SIG:POWR", astype=float, unit="W")
     
-    def read_device_pressure_mbar(self, device_id: str) -> float:
+    def read_pres_pressure_mbar(self, device_id: str) -> float:
         """Return the pressure of a device in millibar."""
-        if device_id.split(":")[1] != "PRES":
-            warnings.warn(
-                f"Device {device_id} is not a pressure sensor",
-                RuntimeWarning,
-            )
+        if self._wrong_device_kind_warning(device_id, "PRES"):
             return None
         
-        response = self._send_command(f"READ:DEV:{device_id}:SIG:PRES")
-        return float(response.split(":")[-1].split('mB')[0])
+        return self._read_value(f"DEV:{device_id}:SIG:PRES", astype=float, unit="mB")
     
-    def read_device_nvalve_percent(self, device_id: str) -> float:
+    def read_aux_nvalve_percent(self, device_id: str) -> float:
         """Return the percent of a device's needle valve."""
-        if device_id.split(":")[1] != "AUX":
-            warnings.warn(
-                f"Device {device_id} is not an auxiliary board",
-                RuntimeWarning,
-            )
+        if self._wrong_device_kind_warning(device_id, "AUX"):
             return None
         
-        response = self._send_command(f"READ:DEV:{device_id}:SIG:PERC")
-        return float(response.split(":")[-1].split('%')[0])
+        return self._read_value(f"DEV:{device_id}:SIG:PERC", astype=float, unit="%")
     
-    def read_device_magnet_T(self, device_id: str) -> float:
+    def read_psu_field_T(self, device_id: str) -> float:
         """Return the magnet field strength of a power supply in Tesla."""
-        if device_id.split(":")[1] != "PSU":
-            warnings.warn(
-                f"Device {device_id} is not a magnet power supply",
-                RuntimeWarning,
-            )
+        if self._wrong_device_kind_warning(device_id, "PSU"):
             return None
         
-        response = self._send_command(f"READ:DEV:{device_id}:SIG:FLD")
-        return float(response.split(":")[-1].split('T')[0])
+        return self._read_value(f"DEV:{device_id}:SIG:FLD", astype=float, unit="T")
     
-    def get_temperature_dict(self) -> dict[str, float]:
+    def read_psu_rate_A_per_min(self, device_id: str) -> float:
+        """Return the current rate of a power supply in Ampere per minute."""
+        if self._wrong_device_kind_warning(device_id, "PSU"):
+            return None
+        
+        return self._read_value(f"DEV:{device_id}:SIG:RCUR", astype=float, unit="A/min")
+    
+    # --- get dictionaries ---
+
+    def dict_temp_temperatures_K(self) -> dict[str, float]:
         """Return a dictionary of temperature sensors and their values."""
         return {
-            name: self.read_device_temperature_K(self.devices[name])
+            name: self.read_temp_temperature_K(self.devices[name])
             for name in self.devices
             if self.devices[name].split(":")[1] == "TEMP"
+            and name not in self.ignored_devices["temperature"]
         }
     
-    def get_heater_dict(self) -> dict[str, float]:
+    def dict_htr_powers_W(self) -> dict[str, float]:
         """Return a dictionary of heater sensors and their values."""
         return {
-            name: self.read_device_heat_W(self.devices[name])
+            name: self.read_htr_power_W(self.devices[name])
             for name in self.devices
             if self.devices[name].split(":")[1] == "HTR"
+            and name not in self.ignored_devices["heater"]
         }
     
-    def get_pressure_dict(self) -> dict[str, float]:
+    def dict_pres_pressures_mbar(self) -> dict[str, float]:
         """Return a dictionary of pressure sensors and their values."""
         return {
-            name: self.read_device_pressure_mbar(self.devices[name])
+            name: self.read_pres_pressure_mbar(self.devices[name])
             for name in self.devices
             if self.devices[name].split(":")[1] == "PRES"
+            and name not in self.ignored_devices["pressure"]
         }
     
-    def get_nvalve_dict(self) -> dict[str, float]:
+    def dict_aux_nvalves_percent(self) -> dict[str, float]:
         """Return a dictionary of needle valve sensors and their values."""
         return {
-            name: self.read_device_nvalve_percent(self.devices[name])
+            name: self.read_aux_nvalve_percent(self.devices[name])
             for name in self.devices
             if self.devices[name].split(":")[1] == "AUX"
+            and name not in self.ignored_devices["nvalve"]
         }
     
-    def get_magnet_dict(self) -> dict[str, float]:
+    def dict_psu_fields_T(self) -> dict[str, float]:
         """Return a dictionary of magnet sensors and their values."""
         return {
-            name: self.read_device_magnet_T(self.devices[name])
+            name: self.read_psu_field_T(self.devices[name])
             for name in self.devices
             if self.devices[name].split(":")[1] == "PSU"
+            and name not in self.ignored_devices["magnet"]
+        }
+    
+    def dict_psu_rates_A_per_min(self) -> dict[str, float]:
+        """Return a dictionary of power supply sensors and their values."""
+        return {
+            name: self.read_psu_rate_A_per_min(self.devices[name])
+            for name in self.devices
+            if self.devices[name].split(":")[1] == "PSU"
+            and name not in self.ignored_devices["magnet"]
         }
