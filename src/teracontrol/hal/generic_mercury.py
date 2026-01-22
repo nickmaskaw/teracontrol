@@ -277,3 +277,12 @@ class GenericMercuryController(BaseHAL):
             if self.devices[name].split(":")[1] == kind
             and name not in self.ignored_devices[kind]
         }
+    
+    def export_temperatures(self) -> dict[str, float]:
+        return self._collect(self.read_temperature, "TEMP")
+    
+    def export_pressures(self) -> dict[str, float]:
+        return self._collect(self.read_pressure, "PRES")
+    
+    def export_nvalves(self) -> dict[str, float]:
+        return self._collect(self.read_nvalve, "AUX")

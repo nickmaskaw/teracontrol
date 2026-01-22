@@ -128,14 +128,17 @@ def main() -> None:
     )
     
     log.info("=== Application started ===")
+
     try:
         app = QtWidgets.QApplication(sys.argv)
         window = MainWindow()
         window.show()
-        sys.exit(app.exec())
+        sys.exit(app.exec())    
+    except Exception:
+        log.exception("Application crashed", exc_info=True)
+        raise
     finally:
         log.info("=== Application exited ===")
-
 
 if __name__ == "__main__":
     main()
