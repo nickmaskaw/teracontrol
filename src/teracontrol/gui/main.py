@@ -6,14 +6,14 @@ from PySide6 import QtWidgets
 
 from teracontrol.app.controller import AppController
 from teracontrol.gui.connection_widget import ConnectionWidget
-from teracontrol.gui.livemonitor_widget import LiveMonitorWidget
-from teracontrol.gui.livestream_experiment_widget import LiveStreamExperimentWidget
+from teracontrol.gui.monitor.monitor_widget import MonitorWidget
 from teracontrol.gui.query_widget import QueryWidget
 from teracontrol.gui.dock_widget import DockWidget
 
 from teracontrol.utils.logging import setup_logging, get_logger
 
 log = get_logger(__name__)
+
 
 class MainWindow(QtWidgets.QMainWindow):
     """
@@ -56,7 +56,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.query_widget = QueryWidget(
             config=self.controller.instrument_config,
         )
-        self.livemonitor_widget = LiveMonitorWidget()
+        self.livemonitor_widget = MonitorWidget()
 
         self.setCentralWidget(self.livemonitor_widget)
 
@@ -85,7 +85,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # --- Controller -> GUI ---
         self.controller.status_updated.connect(self._on_status_updated)
-        self.controller.trace_updated.connect(self._on_trace_updated)
         self.controller.query_response_updated.connect(self._on_query_response)
 
     # ------------------------------------------------------------------
@@ -112,13 +111,6 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def _on_status_updated(self, message: str) -> None:
         self.statusBar().showMessage(message)
-
-    def _on_trace_updated(
-        self,
-        time: np.ndarray,
-        signal: np.ndarray,
-    ) -> None:
-        self.livemonitor_widget.update_trace(time, signal)
 
 
 def main() -> None:

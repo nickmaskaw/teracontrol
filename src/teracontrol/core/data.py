@@ -1,25 +1,44 @@
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable
+import numpy as np
 
+
+# =============================================================================
+# Payload
+# =============================================================================
+
+@dataclass(frozen=True)
+class Waveform:
+    time: np.ndarray
+    signal: np.ndarray
+
+
+# =============================================================================
+# Data Atom
+# =============================================================================
 
 @dataclass(frozen=True)
 class DataAtom:
-    timestamp: float
+    timestamp: datetime
     status: dict[str, Any]
-    data: Any
+    payload: Any
 
+
+# =============================================================================
+# Data Cappture helper
+# =============================================================================
 
 def capture_data(
         read_status: Callable[[], dict[str, Any]],
         read_data: Callable[[], Any],
 ):  
-    ts = datetime.now().astimezone().isoformat()
+    timestamp = datetime.now().astimezone().isoformat()
     status = read_status()
-    data = read_data()
+    payload = read_data()
 
     return DataAtom(
-        timestamp=ts,
+        timestamp=timestamp,
         status=status,
-        data=data,
+        payload=payload,
     )

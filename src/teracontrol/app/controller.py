@@ -12,7 +12,6 @@ from teracontrol.workers.experiment_worker_old import ExperimentWorker
 
 from teracontrol.config.loader import load_config, save_config
 
-from teracontrol.experiments.livestream_experiment import LiveStreamExperiment
 
 class AppController(QtCore.QObject):
     """
@@ -27,7 +26,6 @@ class AppController(QtCore.QObject):
 
     # --- Signals (Controller -> GUI) ---
     status_updated = QtCore.Signal(str)
-    trace_updated = QtCore.Signal(np.ndarray, np.ndarray)
     query_response_updated = QtCore.Signal(str, str, str)
 
     def __init__(self, parent: QtCore.QObject | None = None):
@@ -92,42 +90,6 @@ class AppController(QtCore.QObject):
         
         self.connection_engine.disconnect(name)
         self.status_updated.emit(f"{name} disconnected")
-
-    # --- Livestream control ---
-
-    def run_livestream(self):
-        if self.worker is not None:
-            return
-        
-        self.experiment = LiveStreamExperiment(
-            thz_system=self.instruments[self.THZ],
-            on_new_trace=self._on_new_trace,
-        )
-
-        self.worker = ExperimentWorker(self.experiment)
-        self.worker.finished.connect(self._on_experiment_finished)
-
-        self.status_updated.emit("Running livestream")
-        self.worker.start()
-        return True
-
-    def stop_livestream(self):
-        if self.worker is None:
-            return
-        
-        self.worker.stop()
-        self.worker.quit()
-        self.worker.wait()
-
-        self.worker = None
-        self.status_updated.emit("Connected")
-
-    def _on_experiment_finished(self):
-        self.worker = None
-        self.status_updated.emit("Connected")
-
-    def _on_new_trace(self, time: np.ndarray, signal: np.ndarray):
-        self.trace_updated.emit(time, signal)
 
     # ------------------------------------------------------------------
     # ITC query test
