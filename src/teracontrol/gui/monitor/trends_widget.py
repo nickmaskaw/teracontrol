@@ -11,8 +11,8 @@ class TrendsWidget(QtWidgets.QWidget):
         super().__init__()
 
         self._x: list[int] = []
-        self._peak_amp: list[float] = []
-        self._peak_pos: list[float] = []
+        self._amp: list[float] = []
+        self._pos: list[float] = []
 
         # --- Plots ---
         self.amp_plot = pg.PlotWidget(title="Peak amplitude")
@@ -32,26 +32,19 @@ class TrendsWidget(QtWidgets.QWidget):
         layout.addWidget(self.pos_plot)
         self.setLayout(layout)
 
-    def update_from_waveforms(self, curves) -> None:
-        self.clear()
+    def append_curve(self, curve) -> None:
+        i = int(np.argmax(np.abs(curve.waveform.signal)))
+        self._x.append(len(self._x))
+        self._amp.append(float(curve.waveform.signal[i]))
+        self._pos.append(float(curve.waveform.time[i]))
 
-        indices = [i for i, c in enumerate(curves) if c.visible]
-        indices.sort()
+    def toggle_visibility(self, visible: list[bool]) -> None:
+        x = [i+1 for i, v in enumerate(visible) if v]
+        amp = [self._amp[i-1] for i in x]
+        pos = [self._pos[i-1] for i in x]
 
-        if not indices:
-            return
-
-        wf = [c.waveform for c in curves]
-
-        for idx in indices:
-            i = int(np.argmax(np.abs(wf[idx].signal)))
-            self._x.append(idx + 1)
-            self._peak_amp.append(float(wf[idx].signal[i]))
-            self._peak_pos.append(float(wf[idx].time[i]))
-
-        if self._x:
-            self.amp_curve.setData(self._x, self._peak_amp)
-            self.pos_curve.setData(self._x, self._peak_pos)
+        self.amp_curve.setData(x, amp)
+        self.pos_curve.setData(x, pos)
 
     def clear(self) -> None:
         self._x.clear()

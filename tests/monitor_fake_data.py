@@ -9,7 +9,7 @@ from teracontrol.hal.teraflash import TeraflashTHzSystem
 from teracontrol.hal.mercury_itc import MercuryITCController
 
 from teracontrol.utils.logging import setup_logging
-setup_logging(level=logging.DEBUG)
+setup_logging(level=logging.INFO)
 
 def fake_waveform(
     delay_ps: float = 0.0,
@@ -39,7 +39,7 @@ try:
     monitor = MonitorWidget()
     monitor.show()
 
-    total = 20
+    total = 50
     monitor.configure(expected_load_size=total)
 
     counter = 0

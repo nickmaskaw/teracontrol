@@ -30,6 +30,7 @@ class MonitorWidget(QtWidgets.QWidget):
         self.signal_widget = SignalWidget()
         self.trends_widget = TrendsWidget()
         self.curve_list_widget = CurveListWidget()
+        self.settings_widget = QtWidgets.QWidget()  # TODO: implement
 
         # wire curve list -> monitor
         self.curve_list_widget.visibility_changed.connect(
@@ -43,6 +44,7 @@ class MonitorWidget(QtWidgets.QWidget):
 
         self.tabs2 = QtWidgets.QTabWidget()
         self.tabs2.addTab(self.curve_list_widget, "Curves")
+        self.tabs2.addTab(self.settings_widget, "Settings")
 
         splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
         splitter.addWidget(self.tabs1)
@@ -75,6 +77,7 @@ class MonitorWidget(QtWidgets.QWidget):
 
         self.curve_list_widget.append_curve(meta, hue)
         self.signal_widget.append_curve(curve)
+        self.trends_widget.append_curve(curve)
 
         self._refresh_views()
 
@@ -95,8 +98,9 @@ class MonitorWidget(QtWidgets.QWidget):
     # ------------------------------------------------------------------
     
     def _refresh_views(self) -> None:
-        self.signal_widget.toggle_visibility([c.visible for c in self._curves])
-        self.trends_widget.update_from_waveforms(self._curves)
+        visible = [c.visible for c in self._curves]
+        self.signal_widget.toggle_visibility(visible)
+        self.trends_widget.toggle_visibility(visible)
 
     def _get_hue(self, index: int) -> float:
         total = self._expected_load_size
