@@ -204,7 +204,7 @@ class TeraflashTHzSystem(BaseHAL):
             log.debug("TCP payload received (%d bytes)", length)
 
             trace = self._parse_trace(payload)
-            log.infor("Trace acquisition complete")
+            log.info("Trace acquisition complete")
             return trace
         
         finally:

@@ -1,7 +1,8 @@
 from dataclasses import dataclass
+import numpy as np
 from datetime import datetime
 from typing import Any, Callable
-import numpy as np
+from scipy.fft import fft, fftfreq
 
 
 # =============================================================================
@@ -13,6 +14,27 @@ class Waveform:
     time: np.ndarray
     signal: np.ndarray
 
+@dataclass(frozen=True)
+class WaveSpectrum:
+    freq: np.ndarray
+    amp: np.ndarray
+    phase: np.ndarray
+
+# --- FFT helper ---
+
+def waveform_to_wavespectrum(waveform: Waveform) -> WaveSpectrum:
+    _dt = waveform.time[1] - waveform.time[0]
+    _len = len(waveform.signal)
+    _fft = fft(waveform.signal)[:_len//2]
+    _freq = fftfreq(_len, _dt)[:_len//2]
+    _amp = np.abs(_fft)
+    _phase = np.unwrap(np.angle(_fft))
+    
+    return WaveSpectrum(
+        freq=_freq,
+        amp=_amp,
+        phase=_phase,
+    )
 
 # =============================================================================
 # Data Atom

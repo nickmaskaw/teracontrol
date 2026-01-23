@@ -3,8 +3,6 @@ import pyqtgraph as pg
 from typing import Iterable
 from PySide6 import QtWidgets
 
-from teracontrol.core.data import Waveform
-
 
 class TrendsWidget(QtWidgets.QWidget):
     """Stacked plots of peak amplitude and peak position"""
@@ -15,7 +13,6 @@ class TrendsWidget(QtWidgets.QWidget):
         self._x: list[int] = []
         self._peak_amp: list[float] = []
         self._peak_pos: list[float] = []
-        self._counter: int = 0
 
         # --- Plots ---
         self.amp_plot = pg.PlotWidget(title="Peak amplitude")
@@ -35,18 +32,22 @@ class TrendsWidget(QtWidgets.QWidget):
         layout.addWidget(self.pos_plot)
         self.setLayout(layout)
 
-    def update_from_waveforms(self, waveforms: Iterable[Waveform]) -> None:
+    def update_from_waveforms(self, curves) -> None:
         self.clear()
-        
-        for wf in waveforms:
-            i = int(np.argmax(wf.signal))
-            peak_amp = float(wf.signal[i])
-            peak_pos = float(wf.time[i])
 
-            self._x.append(self._counter)
-            self._peak_amp.append(peak_amp)
-            self._peak_pos.append(peak_pos)
-            self._counter += 1
+        indices = [i for i, c in enumerate(curves) if c.visible]
+        indices.sort()
+
+        if not indices:
+            return
+
+        wf = [c.waveform for c in curves]
+
+        for idx in indices:
+            i = int(np.argmax(np.abs(wf[idx].signal)))
+            self._x.append(idx + 1)
+            self._peak_amp.append(float(wf[idx].signal[i]))
+            self._peak_pos.append(float(wf[idx].time[i]))
 
         if self._x:
             self.amp_curve.setData(self._x, self._peak_amp)
@@ -56,7 +57,5 @@ class TrendsWidget(QtWidgets.QWidget):
         self._x.clear()
         self._peak_amp.clear()
         self._peak_pos.clear()
-        self._counter = 0
-
         self.amp_curve.clear()
         self.pos_curve.clear()
