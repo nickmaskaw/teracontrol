@@ -1,5 +1,4 @@
 from PySide6 import QtWidgets, QtCore, QtGui
-from typing import Optional, Callable
 
 
 class CurveListWidget(QtWidgets.QWidget):
@@ -38,6 +37,9 @@ class CurveListWidget(QtWidgets.QWidget):
         item.setData(QtCore.Qt.DecorationRole, pix)
 
         self._list.addItem(item)
+
+    def clear(self):
+        self._list.clear()
 
     # ------------------------------------------------------------------
     # Internal helpers

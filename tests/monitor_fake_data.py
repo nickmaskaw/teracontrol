@@ -1,5 +1,4 @@
 import sys
-import numpy as np
 import logging
 from PySide6 import QtWidgets, QtCore
 
@@ -7,27 +6,59 @@ from teracontrol.core.data import Waveform
 from teracontrol.gui.monitor.monitor_widget import MonitorWidget
 from teracontrol.hal.teraflash import TeraflashTHzSystem
 from teracontrol.hal.mercury_itc import MercuryITCController
-
 from teracontrol.utils.logging import setup_logging
+
+
+# -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
 setup_logging(level=logging.INFO)
 
-def fake_waveform(
-    delay_ps: float = 0.0,
-    amplitude_nA: float = 1.0,
-    noise: float = 0.0,
-    n: int = 1024,
-):
-    t = np.linspace(-10, 10, n)  # ps
-    signal = amplitude_nA * np.exp(-(t) ** 2) * np.cos(
-        2 * np.pi * 0.5 * (t + delay_ps)
-    )
 
-    if noise > 0:
-        signal += noise * np.random.randn(n)
+# -----------------------------------------------------------------------------
+# Worker
+# -----------------------------------------------------------------------------
+class AcquisitionWorker(QtCore.QObject):
+    waveform_ready = QtCore.Signal(object, dict)
+    finished = QtCore.Signal()
 
-    return Waveform(time=t, signal=signal)
+    def __init__(self, thz, itc, total: int, interval_ms: int = 1000):
+        super().__init__()
+        self.thz = thz
+        self.itc = itc
+        self.total = total
+        self.interval_ms = interval_ms
+        self._running = True
 
-try: 
+    @QtCore.Slot()
+    def run(self):
+        counter = 0
+
+        while self._running and counter < self.total:
+            trace = self.thz.acquire_trace()
+            meta = self.itc.export_temperatures()
+
+            wf = Waveform(
+                time=trace["time_abs_ps"],
+                signal=trace["signal1_na"],
+            )
+
+            self.waveform_ready.emit(wf, meta)
+            counter += 1
+
+            QtCore.QThread.msleep(self.interval_ms)
+
+        self.finished.emit()
+
+    def stop(self):
+        self._running = False
+
+
+# -----------------------------------------------------------------------------
+# Main
+# -----------------------------------------------------------------------------
+def main():
+    # --- Hardware ---
     thz = TeraflashTHzSystem()
     itc = MercuryITCController()
 
@@ -36,52 +67,41 @@ try:
 
     app = QtWidgets.QApplication(sys.argv)
 
+    # --- UI ---
     monitor = MonitorWidget()
     monitor.show()
 
     total = 50
     monitor.configure(expected_load_size=total)
 
-    counter = 0
+    # --- Thread + worker ---
+    thread = QtCore.QThread()
+    worker = AcquisitionWorker(thz, itc, total=total, interval_ms=1000)
+    worker.moveToThread(thread)
 
+    # --- Connections ---
+    thread.started.connect(worker.run)
+    worker.waveform_ready.connect(monitor.on_new_waveform)
 
-    def update():
-        global counter
+    worker.finished.connect(thread.quit)
+    worker.finished.connect(worker.deleteLater)
+    thread.finished.connect(thread.deleteLater)
 
-        #wf = fake_waveform(
-        #    delay_ps=counter * 0.05,
-        #    amplitude_nA=counter * 0.05,
-        #    noise=0.0,
-        #)
+    thread.start()
 
-        #meta = {
-        #    "index": counter,
-        #    "delay_ps": counter * 0.05,
-        #    "amplitude_nA": counter * 0.05,
-        #}
+    # --- Graceful shutdown ---
+    def cleanup():
+        worker.stop()
+        thread.quit()
+        thread.wait()
+        itc.disconnect()
+        thz.disconnect()
 
-        trace = thz.acquire_trace()
-        meta = itc.export_temperatures()
-
-        #print(trace)
-
-        wf = Waveform(
-            time = trace["time_abs_ps"],
-            signal = trace["signal1_na"],
-        )
-
-        monitor.on_new_waveform(wf, meta=meta)
-        counter += 1
-
-        if counter >= total:
-            timer.stop()
-
-    timer = QtCore.QTimer()
-    timer.timeout.connect(update)
-    timer.start(1000)
+    app.aboutToQuit.connect(cleanup)
 
     sys.exit(app.exec())
 
-finally:
-    itc.disconnect()
-    thz.disconnect()
+
+# -----------------------------------------------------------------------------
+if __name__ == "__main__":
+    main()

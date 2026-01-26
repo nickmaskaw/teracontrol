@@ -22,10 +22,24 @@ class WaveSpectrum:
 
 # --- FFT helper ---
 
-def waveform_to_wavespectrum(waveform: Waveform) -> WaveSpectrum:
+def waveform_to_wavespectrum(
+    waveform: Waveform,
+    t_cut: float | None = None,
+    length: int | None = None,
+) -> WaveSpectrum:   
+    if t_cut is not None:
+        _signal = waveform.signal[waveform.time < t_cut]
+    else:
+        _signal = waveform.signal
+
+    # zero padding
+    if length is not None:
+        _len = length
+    else:
+        _len = len(_signal)
+
     _dt = waveform.time[1] - waveform.time[0]
-    _len = len(waveform.signal)
-    _fft = fft(waveform.signal)[:_len//2]
+    _fft = fft(_signal, n=_len)[:_len//2]
     _freq = fftfreq(_len, _dt)[:_len//2]
     _amp = np.abs(_fft)
     _phase = np.unwrap(np.angle(_fft))

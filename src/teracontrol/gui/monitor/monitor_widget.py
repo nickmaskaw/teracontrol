@@ -5,6 +5,9 @@ from .signal_widget import SignalWidget
 from .trends_widget import TrendsWidget
 from .curve_list_widget import CurveListWidget
 from teracontrol.core.data import Waveform, WaveSpectrum, waveform_to_wavespectrum
+from teracontrol.utils.logging import get_logger
+
+log = get_logger(__name__)
 
 
 @dataclass
@@ -25,16 +28,24 @@ class MonitorWidget(QtWidgets.QWidget):
         # --- GUI cache / registry ---
         self._curves: list[CurveEntry] = []
         self._expected_load_size: int = 0
+        self._fft_tmax: float | None = None
+        self._fft_pad: int | None = None
 
         # --- Child widgets ---
         self.signal_widget = SignalWidget()
         self.trends_widget = TrendsWidget()
         self.curve_list_widget = CurveListWidget()
-        self.settings_widget = QtWidgets.QWidget()  # TODO: implement
+        #self.settings_widget = QtWidgets.QWidget()  # TODO: implement
 
-        # wire curve list -> monitor
+        # wiring
         self.curve_list_widget.visibility_changed.connect(
             self.set_curve_visible
+        )
+        self.signal_widget.cursor_moved_signal.connect(
+            self.set_fft_tmax
+        )
+        self.signal_widget.pad_changed_signal.connect(
+            self.set_pad
         )
 
         # --- GUI layout ---
@@ -44,7 +55,7 @@ class MonitorWidget(QtWidgets.QWidget):
 
         self.tabs2 = QtWidgets.QTabWidget()
         self.tabs2.addTab(self.curve_list_widget, "Curves")
-        self.tabs2.addTab(self.settings_widget, "Settings")
+        #self.tabs2.addTab(self.settings_widget, "Settings")
 
         splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
         splitter.addWidget(self.tabs1)
@@ -68,7 +79,7 @@ class MonitorWidget(QtWidgets.QWidget):
 
     def on_new_waveform(self, wf: Waveform, meta: dict | None = None) -> None:
         """Append a new waveform to the monitor"""
-        sp = waveform_to_wavespectrum(wf)
+        sp = waveform_to_wavespectrum(wf, t_cut=self._fft_tmax, length=self._fft_pad)
         hue = self._get_hue(len(self._curves))
 
         curve = CurveEntry(waveform=wf, spectrum=sp, visible=True, meta=meta, hue=hue)
@@ -87,11 +98,28 @@ class MonitorWidget(QtWidgets.QWidget):
             self._curves[index].visible = visible
             self._refresh_views()
 
+    def set_fft_tmax(self, t: float) -> None:
+        self._fft_tmax = t
+        log.info(f"FFT truncation set to {t:.3f}")
+        self._recompute_ffts()
+        self.signal_widget.refresh_spectra(self._curves)
+        self.signal_widget.update_cursor_visor(t)
+
+    def set_pad(self, power: int) -> None:
+        if power <= 0:
+            self._fft_pad = None
+            log.info("FFT padding disabled")
+        else:
+            self._fft_pad = 2**power
+            log.info(f"FFT padding set to 2^{power}")
+        self._recompute_ffts()
+        self.signal_widget.refresh_spectra(self._curves)
+
     def clear(self) -> None:
         self._curves.clear()
         self.signal_widget.clear()
         self.trends_widget.clear()
-        self.curve_list_widget.set_curves(count=0)
+        self.curve_list_widget.clear()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -112,3 +140,11 @@ class MonitorWidget(QtWidgets.QWidget):
             return 0.0
         
         return index / max(total - 1, 1)
+    
+    def _recompute_ffts(self) -> None:
+        for curve in self._curves:
+            curve.spectrum = waveform_to_wavespectrum(
+                curve.waveform,
+                t_cut=self._fft_tmax,
+                length=self._fft_pad,
+            )
