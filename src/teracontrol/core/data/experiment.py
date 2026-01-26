@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Any
-from teracontrol.core.record import Record
+from .record import Record
 
 
 @dataclass

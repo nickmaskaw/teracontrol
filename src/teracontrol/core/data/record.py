@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Iterable, List
-from teracontrol.core.data import DataAtom
+from .data import DataAtom
 
 
 @dataclass

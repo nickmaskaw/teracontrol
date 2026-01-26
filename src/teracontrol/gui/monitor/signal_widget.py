@@ -1,5 +1,4 @@
 import pyqtgraph as pg
-from typing import Iterable, Callable
 from PySide6 import QtWidgets, QtCore
 
 

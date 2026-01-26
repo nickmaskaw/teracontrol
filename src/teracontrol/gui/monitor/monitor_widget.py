@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from .signal_widget import SignalWidget
 from .trends_widget import TrendsWidget
 from .curve_list_widget import CurveListWidget
-from teracontrol.core.data import Waveform, WaveSpectrum, waveform_to_wavespectrum
+from teracontrol.core.data.data import Waveform, WaveSpectrum, waveform_to_wavespectrum
 from teracontrol.utils.logging import get_logger
 
 log = get_logger(__name__)
