@@ -1,11 +1,10 @@
-from typing import Callable
-import numpy as np
-
 from PySide6 import QtCore
 
-from teracontrol.hal.teraflash import TeraflashTHzSystem
-from teracontrol.hal.generic_mercury import GenericMercuryController
-
+from teracontrol.hal import (
+    TeraflashTHzSystem,
+    MercuryITCController,
+    MercuryIPSController,
+)
 from teracontrol.engines.connection_engine import ConnectionEngine
 from teracontrol.engines.query_engine import QueryEngine
 
@@ -29,14 +28,15 @@ class AppController(QtCore.QObject):
 
     def __init__(self, parent: QtCore.QObject | None = None):
         super().__init__(parent)
+        
         # --- Configuration ---
         self.instrument_config = load_config(self.INSTRUMENT_CONFIG_PATH)
 
         # --- HAL instances ---
         self.instruments = {
             self.THZ: TeraflashTHzSystem(),
-            self.TEMP: GenericMercuryController(name="ITC"),
-            self.FIELD: GenericMercuryController(name="IPS"),
+            self.TEMP: MercuryITCController(),
+            self.FIELD: MercuryIPSController(),
         }
 
         # --- Engines ---

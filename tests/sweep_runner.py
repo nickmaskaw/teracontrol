@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sys
 import numpy as np
-from dataclasses import asdict
 from typing import Any
 
 from PySide6 import QtWidgets, QtCore
@@ -48,7 +47,7 @@ app = QtWidgets.QApplication(sys.argv)
 monitor = MonitorWidget()
 monitor.show()
 
-total = 11
+total = len(list(runner.sweep.points()))
 monitor.configure(expected_load_size=total)
 
 thread = QtCore.QThread()

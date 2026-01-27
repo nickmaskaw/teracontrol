@@ -1,19 +1,20 @@
 import sys
 import logging
-import numpy as np
-
 from PySide6 import QtWidgets
 
-from teracontrol.app.controller import AppController
-from teracontrol.gui.connection_widget import ConnectionWidget
-from teracontrol.gui.monitor.monitor_widget import MonitorWidget
-from teracontrol.gui.query_widget import QueryWidget
-from teracontrol.gui.dock_widget import DockWidget
-
+from teracontrol.controllers import AppController
 from teracontrol.utils.logging import setup_logging, get_logger
+
+from .monitor import MonitorWidget
+from .instrument import ConnectionWidget, QueryWidget
+from .dock_widget import DockWidget
+
 
 log = get_logger(__name__)
 
+# ======================================================================
+# Main Window
+# ======================================================================
 
 class MainWindow(QtWidgets.QMainWindow):
     """
@@ -50,38 +51,38 @@ class MainWindow(QtWidgets.QMainWindow):
         self.controller = AppController(parent=self)
 
     def _setup_widgets(self) -> None:
-        self.connection_widget = ConnectionWidget(
-            config=self.controller.instrument_config,
+        self.connection = ConnectionWidget(
+            config=self.controller.instruments.config,
         )
-        self.query_widget = QueryWidget(
-            config=self.controller.instrument_config,
+        self.query = QueryWidget(
+            config=self.controller.instruments.config,
         )
-        self.livemonitor_widget = MonitorWidget()
+        self.monitor = MonitorWidget()
 
-        self.setCentralWidget(self.livemonitor_widget)
+        self.setCentralWidget(self.monitor)
 
     def _setup_docks(self) -> None:
         self.connection_dock = DockWidget(
             name="Connection",
             parent=self,
-            widget=self.connection_widget,
+            widget=self.connection,
             menu=self.window_menu,
         )
         self.query_dock = DockWidget(
             name="Query",
             parent=self,
-            widget=self.query_widget,
+            widget=self.query,
             menu=self.debug_menu,
             set_floating=True,
         )
 
     def _connect_signals(self) -> None:
         # --- Connection ---
-        self.connection_widget.connect_requested.connect(self._on_connect)
-        self.connection_widget.disconnect_requested.connect(self._on_disconnect)
+        self.connection.connect_requested.connect(self._on_connect)
+        self.connection.disconnect_requested.connect(self._on_disconnect)
 
         # --- Query ---
-        self.query_widget.query_requested.connect(self._on_query)
+        self.query.query_requested.connect(self._on_query)
 
         # --- Controller -> GUI ---
         self.controller.status_updated.connect(self._on_status_updated)
@@ -93,11 +94,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _on_connect(self, name: str, address: str) -> None:
         ok = self.controller.connect_instrument(name, address)
-        self.connection_widget.set_connected(name, ok)
+        self.connection.set_connected(name, ok)
 
     def _on_disconnect(self, name: str) -> None:
         self.controller.disconnect_instrument(name)
-        self.connection_widget.set_connected(name, False)
+        self.connection.set_connected(name, False)
 
     def _on_query(self, name: str, query: str) -> None:
         self.controller.send_query(name, query)
@@ -107,11 +108,14 @@ class MainWindow(QtWidgets.QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_query_response(self, name: str, query: str, response: str) -> None:
-        self.query_widget.update_response(name, query, response)
+        self.query.update_response(name, query, response)
     
     def _on_status_updated(self, message: str) -> None:
         self.statusBar().showMessage(message)
 
+# ======================================================================
+# Main
+# ======================================================================
 
 def main() -> None:
     setup_logging(
@@ -125,12 +129,15 @@ def main() -> None:
         app = QtWidgets.QApplication(sys.argv)
         window = MainWindow()
         window.show()
-        sys.exit(app.exec())    
+        sys.exit(app.exec())
+
     except Exception:
         log.exception("Application crashed", exc_info=True)
         raise
+
     finally:
         log.info("=== Application exited ===")
+
 
 if __name__ == "__main__":
     main()

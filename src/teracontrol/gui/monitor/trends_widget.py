@@ -28,6 +28,7 @@ class TrendsWidget(QtWidgets.QWidget):
 
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(self.amp_plot)
+        layout.addSpacing(48)
         layout.addWidget(self.pos_plot)
         self.setLayout(layout)
 
