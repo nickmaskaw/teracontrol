@@ -13,34 +13,27 @@ from teracontrol.core.experiment import (
 from teracontrol.core.data import Experiment
 from teracontrol.gui.monitor.monitor_widget import MonitorWidget
 
-def read_data(meta):
-    value = meta["value"]
+from teracontrol.hal import TeraflashTHzSystem, MercuryITCController, MercuryIPSController
+from teracontrol.engines.capture_engine import CaptureEngine
 
-    return Waveform(
-        time=np.linspace(0, 10, 100),
-        signal=value*np.sin(np.linspace(0, 10, 100)),
-    )
+def on_new_data(data, meta):
+    monitor.on_new_waveform(data.payload, meta)
 
-def read_status(meta):
-    status = {
-        "place_holder": "placeholder",
-    }
-    status.update(meta)
-    return status
+thz = TeraflashTHzSystem()
+itc = MercuryITCController()
+ips = MercuryIPSController()
 
-def capture(meta: dict[str, Any]):
-    _status = lambda: read_status(meta)   
-    _data = lambda: read_data(meta)
-    return capture_data(_status, _data)
+thz.connect("127.0.0.1")
+itc.connect("192.168.1.2")
+ips.connect("192.168.1.3")
 
-def on_new_data(data):
-    return monitor.on_new_waveform(data.payload)
+engine = CaptureEngine(thz, itc, ips)
 
 count = CountAxis()
 sweep = SweepConfig(count, 0, 10, 1, 1.0)
 
 experiment = Experiment(metadata=sweep.describe())
-runner = SweepRunner(sweep, experiment, capture)
+runner = SweepRunner(sweep, experiment,engine.capture)
 
 app = QtWidgets.QApplication(sys.argv)
 
@@ -64,7 +57,15 @@ thread.finished.connect(thread.deleteLater)
 thread.start()
 
 
+def cleanup():
+        worker.abort()
+        thread.quit()
+        thread.wait()
+        itc.disconnect()
+        ips.disconnect()
+        thz.disconnect()
 
+app.aboutToQuit.connect(cleanup)
 
 
 sys.exit(app.exec())

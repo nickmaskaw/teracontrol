@@ -55,5 +55,10 @@ class CurveListWidget(QtWidgets.QWidget):
         if not meta:
             return f"Curve {index + 1}"
         
-        parts = [f"{k}={v:.2f}" for k, v in meta.items()]
+        parts = [
+            f"{k}={v:.2f}"
+            if isinstance(v, (int, float))
+            else f"{k}={v}"
+            for k, v in meta.items()
+        ]
         return f"Curve {index + 1} | " + " | ".join(parts)

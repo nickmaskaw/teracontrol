@@ -33,7 +33,7 @@ class TeraflashTHzSystem(BaseHAL):
 
     def __init__(self, timeout_s: float = 15.0, channel: int = 1):
         super().__init__(timeout_s)
-        self.channel = channel
+        self._channel = channel
         self.host: str = ""
         self._udp_tx = None
         self._udp_rx = None
@@ -42,6 +42,10 @@ class TeraflashTHzSystem(BaseHAL):
             "TeraFlashTHzSystem initialized (timeout: %.2fs, channel: %d)",
             timeout_s, channel
         )
+
+    @property
+    def channel(self) -> int:
+        return self._channel
 
     # ------------------------------------------------------------------
     # Connection handling
@@ -285,7 +289,7 @@ class TeraflashTHzSystem(BaseHAL):
                 f"Channel {channel} is not supported by this instrument"
             )
         
-        self.channel = channel
+        self._channel = channel
     
     def set_laser_on(self) -> None:
         self._set("RC-LASER", "ON")

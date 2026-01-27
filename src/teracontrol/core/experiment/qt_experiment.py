@@ -17,9 +17,9 @@ class ExperimentSignals(QtCore.QObject):
     finished = QtCore.Signal()
 
     # step lifecycle
-    step_started = QtCore.Signal(dict)    # axis.describe(value)
-    data_ready = QtCore.Signal(DataAtom)  # streaming acquisition
-    step_finished = QtCore.Signal(dict)   # axis.describe(value)
+    step_started = QtCore.Signal(dict)          # axis.describe(value)
+    data_ready = QtCore.Signal(DataAtom, dict)  # streaming acquisition
+    step_finished = QtCore.Signal(dict)         # axis.describe(value)
 
 
 class ExperimentWorker(QtCore.QObject):
@@ -46,7 +46,7 @@ class ExperimentWorker(QtCore.QObject):
         try:
             for value in sweep.points():
                 if self._abort:
-                    self.experiment.abort()
+                    self.runner.abort()
                     self.signals.aborted.emit()
                     return
 
@@ -61,7 +61,7 @@ class ExperimentWorker(QtCore.QObject):
                 atom = self.runner.capture(meta)
                 self.runner.experiment.record.append(atom)
 
-                self.signals.data_ready.emit(atom)
+                self.signals.data_ready.emit(atom, meta)
                 self.signals.step_finished.emit(meta)
 
         finally:
