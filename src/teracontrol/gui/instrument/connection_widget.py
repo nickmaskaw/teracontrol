@@ -1,92 +1,110 @@
 from PySide6 import QtWidgets, QtCore
+from teracontrol.core.instruments import InstrumentPreset
+from teracontrol.utils.logging import get_logger
+
+log = get_logger(__name__)
+
 
 class ConnectionWidget(QtWidgets.QWidget):
-    """Generic Widget for managing instrument connection."""
+    
+    # --- Signals ---
+    connect_requested = QtCore.Signal(str, str)  # name, address
+    disconnect_requested = QtCore.Signal(str)    # name
 
-    connect_requested = QtCore.Signal(str, str)
-    # name, address
-    disconnect_requested = QtCore.Signal(str)
-    # name
-
-    def __init__(self, config: dict):
+    def __init__(self, presets: dict[str, InstrumentPreset]) -> None:
         super().__init__()
 
-        self.config = config
-        self.names = list(self.config.keys())
+        self._presets = dict(presets)
+        self._names = list(self._presets.keys())
+        
+        self._edits: dict[str, QtWidgets.QLineEdit] = {}
+        self._buttons: dict[str, QtWidgets.QPushButton] = {}
+        self._connected: dict[str, bool] = {
+            name: False for name in self._names
+        }
 
-        self.edits: dict[str, QtWidgets.QLineEdit] = {}
-        self.buttons: dict[str, QtWidgets.QPushButton] = {}
+        self._setup_widgets()
+        
+    # --- Internal Helpers ------------------------------------------------        
 
-        # --- Internal UI state ---
-        self._connected: dict[str, bool] = {name: False for name in self.names}
-        self._connecting: dict[str, bool] = {name: False for name in self.names}
-
+    def _setup_widgets(self) -> None:
         layout = QtWidgets.QFormLayout()
 
-        for name in self.names:
-            # --- Address edit ---
+        for name in self._names:            
             edit = QtWidgets.QLineEdit()
-            edit.setText(self.config[name].get("address", ""))
-            edit.setToolTip(self.config[name].get("address_hint", ""))
-            edit.returnPressed.connect(
-                lambda n=name: self._on_return_pressed(n)
-            )
+            edit.setText(self._presets[name].address)
+            edit.setToolTip(self._presets[name].address_type)
 
-            # --- Connect / Disconnect button ---
             button = QtWidgets.QPushButton("Connect")
             button.clicked.connect(
                 lambda _, n=name: self._on_button_clicked(n)
             )
 
-            self.edits[name] = edit
-            self.buttons[name] = button
-            
-            sub_layout = QtWidgets.QHBoxLayout()
-            sub_layout.addWidget(edit)
-            sub_layout.addWidget(button)
+            self._edits[name] = edit
+            self._buttons[name] = button
 
-            layout.addRow(name, sub_layout)
+            inner_layout = QtWidgets.QHBoxLayout()
+            inner_layout.addWidget(edit)
+            inner_layout.addWidget(button)
+
+            layout.addRow(name, inner_layout)
 
         self.setLayout(layout)
 
-    # ------------------------------------------------------------------
-    # UI → Controller intent
-    # ------------------------------------------------------------------
-
-    def _on_button_clicked(self, name:str):
-        if self._connecting[name]:
-            return # Ignore clicks while busy
-        
-        if not self._connected[name]:
-            self._update_edit(name)
-            self.set_connecting(name, True)
-            self.connect_requested.emit(name, self.edits[name].text())
-        else:
-            self.disconnect_requested.emit(name)
-
-    def _on_return_pressed(self, name: str):
-        if not self._connected[name] and not self._connecting[name]:
-            self._button_clicked(name)
-
-    def _update_edit(self, name: str):
-        edit = self.edits[name]
+    def _normalize_input(self, name: str) -> None:
+        edit = self._edits[name]
         edit.setText(edit.text().strip())
 
+    def _set_pending(self, name: str, pending: bool):
+        self._buttons[name].setEnabled(not pending)
+
+    def _check_name(self, name: str) -> bool:
+        if name not in self._names:
+            log.warning(f"Unknown instrument name: {name}")
+            return False
+        
+        return True
+
     # ------------------------------------------------------------------
-    # Controller → UI state updates
+    # UI -> Controller intent
     # ------------------------------------------------------------------
 
-    def set_connecting(self, name: str, connecting: bool):
-        """Logical state only. No UI side effects."""
-        self._connecting[name] = connecting
+    def _on_button_clicked(self, name:str) -> None:        
+        if not self._check_name(name):
+            return
+        
+        if not self._connected[name]:
+            self._set_pending(name, True)
+            self._normalize_input(name)
+            address = self._edits[name].text()
+            log.info("Connect requested: %s @ %s", name, address)
+            self.connect_requested.emit(name, address)
+
+        else:
+            log.info("Disconnect requested: %s", name)
+            self.disconnect_requested.emit(name)
+
+    # ------------------------------------------------------------------
+    # Controller -> UI state updates
+    # ------------------------------------------------------------------
 
     def set_connected(self, name: str, connected: bool):
-        """Update final connection state."""
-        self._connected[name] = connected
-        self._connecting[name] = False
+        """Must be called by the controller on both success and failure."""
+        
+        if not self._check_name(name):
+            return
 
-        button = self.buttons[name]
-        edit = self.edits[name]
+        self._set_pending(name, False)
+        self._connected[name] = connected
+
+        button = self._buttons[name]
+        edit = self._edits[name]
 
         button.setText("Disconnect" if connected else "Connect")
         edit.setEnabled(not connected)
+
+        log.info(
+            "Connection state updated: %s -> %s",
+            name,
+            "CONNECTED" if connected else "DISCONNECTED",
+        )
