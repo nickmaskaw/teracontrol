@@ -12,7 +12,7 @@ class QueryWidget(QtWidgets.QWidget):
     def __init__(self, instrument_names: list[str]):
         super().__init__()
 
-        self._names = instrument_names
+        self._names = list(instrument_names)
 
         self._queries: dict[str, QtWidgets.QLineEdit] = {}
         self._buttons: dict[str, QtWidgets.QPushButton] = {}

@@ -11,11 +11,10 @@ class ConnectionWidget(QtWidgets.QWidget):
     connect_requested = QtCore.Signal(str, str)  # name, address
     disconnect_requested = QtCore.Signal(str)    # name
 
-    def __init__(self, presets: dict[str, InstrumentPreset]) -> None:
+    def __init__(self, instrument_names: list[str]) -> None:
         super().__init__()
 
-        self._presets = dict(presets)
-        self._names = list(self._presets.keys())
+        self._names = list(instrument_names)
         
         self._edits: dict[str, QtWidgets.QLineEdit] = {}
         self._buttons: dict[str, QtWidgets.QPushButton] = {}
@@ -35,8 +34,6 @@ class ConnectionWidget(QtWidgets.QWidget):
             led = self._make_status_led()
             
             edit = QtWidgets.QLineEdit()
-            edit.setText(self._presets[name].address)
-            edit.setToolTip(self._presets[name].address_type)
 
             button = QtWidgets.QPushButton("Connect")
             button.clicked.connect(
@@ -106,6 +103,29 @@ class ConnectionWidget(QtWidgets.QWidget):
     def _update_status_led(self, name: str) -> None:
         color = "green" if self._connected[name] else "red"
         self._set_led_color(self._status_leds[name], color)
+
+    # --- Public API ------------------------------------------------------
+
+    def apply_presets(self, presets: dict[str, InstrumentPreset]) -> None:
+        for name, preset in presets.items():
+            if name not in self._edits:
+                continue
+
+            edit = self._edits[name]
+
+            if preset.address and not edit.text():
+                edit.setText(preset.address)
+                log.debug(
+                    "Load %s preset address (%s)",
+                    name, preset.address
+                )
+
+            if preset.address_type:
+                edit.setToolTip(preset.address_type)
+                log.debug(
+                    "Load %s preset address type (%s)",
+                    name, preset.address_type
+                )
 
     # ------------------------------------------------------------------
     # UI -> Controller intent

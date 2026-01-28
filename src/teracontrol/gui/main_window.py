@@ -6,6 +6,7 @@ from teracontrol.core.instruments import InstrumentPreset
 
 from .monitor import MonitorWidget
 from .instrument import ConnectionWidget, QueryWidget
+from .experiment import ExperimentControlWidget
 from .dock_widget import DockWidget
 
 from teracontrol.utils.logging import get_logger
@@ -35,6 +36,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._setup_window()
         self._setup_menus()
         self._setup_widgets()
+        self._load_presets()
         self._setup_layout()
         self._wire_signals()
 
@@ -54,8 +56,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.widgets = {
             "connection": ConnectionWidget(self._filtered_presets),
             "query": QueryWidget(self._instrument_names),
+            "experiment": ExperimentControlWidget(),
             "monitor": MonitorWidget(),
         }
+    
+    def _load_presets(self) -> None:
+        self.widgets["connection"].apply_presets(self._filtered_presets)
     
     def _setup_layout(self) -> None:
         self.setCentralWidget(self.widgets["monitor"])
@@ -72,6 +78,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 widget=self.widgets["query"],
                 menu=self.menus["debug"],
                 set_floating=True,
+            ),
+            "experiment": DockWidget(
+                name="Sweep Experiment",
+                parent=self,
+                widget=self.widgets["experiment"],
+                menu=self.menus["window"],
             ),
         }
 
