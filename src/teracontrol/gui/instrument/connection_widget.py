@@ -19,6 +19,7 @@ class ConnectionWidget(QtWidgets.QWidget):
         
         self._edits: dict[str, QtWidgets.QLineEdit] = {}
         self._buttons: dict[str, QtWidgets.QPushButton] = {}
+        self._status_leds: dict[str, QtWidgets.QLabel] = {}
         self._connected: dict[str, bool] = {
             name: False for name in self._names
         }
@@ -31,6 +32,8 @@ class ConnectionWidget(QtWidgets.QWidget):
         layout = QtWidgets.QFormLayout()
 
         for name in self._names:            
+            led = self._make_status_led()
+            
             edit = QtWidgets.QLineEdit()
             edit.setText(self._presets[name].address)
             edit.setToolTip(self._presets[name].address_type)
@@ -40,11 +43,13 @@ class ConnectionWidget(QtWidgets.QWidget):
                 lambda _, n=name: self._on_button_clicked(n)
             )
 
+            self._status_leds[name] = led
             self._edits[name] = edit
             self._buttons[name] = button
 
             inner_layout = QtWidgets.QHBoxLayout()
             inner_layout.addWidget(edit)
+            inner_layout.addWidget(led)
             inner_layout.addWidget(button)
 
             layout.addRow(name, inner_layout)
@@ -64,6 +69,43 @@ class ConnectionWidget(QtWidgets.QWidget):
             return False
         
         return True
+    
+    def _make_status_led(self) -> QtWidgets.QLabel:
+        led = QtWidgets.QLabel()
+        led.setFixedSize(10, 10)
+        self._set_led_color(led, "red")
+        return led
+    
+    def _set_led_color(self, led: QtWidgets.QLabel, color: str) -> None:
+        gradients = {
+            "red": """
+                background-color: qradialgradient(
+                    cx:0.3, cy:0.3, radius:0.8,
+                    fx:0.3, fy:0.3,
+                    stop:0 #ffcccc,
+                    stop:0.4 #ff3333,
+                    stop:1 #880000
+                );
+            """,
+            "green": """
+                background-color: qradialgradient(
+                    cx:0.3, cy:0.3, radius:0.8,
+                    fx:0.3, fy:0.3,
+                    stop:0 #ccffcc,
+                    stop:0.4 #33cc33,
+                    stop:1 #006600
+                );
+            """,
+        }
+
+        led.setStyleSheet(f"""
+            border-radius: 5px;
+            {gradients[color]}
+        """)
+
+    def _update_status_led(self, name: str) -> None:
+        color = "green" if self._connected[name] else "red"
+        self._set_led_color(self._status_leds[name], color)
 
     # ------------------------------------------------------------------
     # UI -> Controller intent
@@ -103,8 +145,23 @@ class ConnectionWidget(QtWidgets.QWidget):
         button.setText("Disconnect" if connected else "Connect")
         edit.setEnabled(not connected)
 
+        self._update_status_led(name)
+
         log.info(
             "Connection state updated: %s -> %s",
             name,
             "CONNECTED" if connected else "DISCONNECTED",
         )
+
+    def set_enabled(self, enabled: bool) -> None:
+        for name in self._names:
+            button = self._buttons[name]
+            edit = self._edits[name]
+
+            if not enabled:
+                button.setEnabled(False)
+                edit.setEnabled(False)
+            else:
+                connected = self._connected[name]
+                button.setEnabled(True)
+                edit.setEnabled(not connected)

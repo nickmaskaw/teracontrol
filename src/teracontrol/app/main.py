@@ -2,11 +2,11 @@ import sys
 import logging
 from PySide6 import QtWidgets
 
-from teracontrol.utils.logging import setup_logging, get_logger
-
 from teracontrol.core.instruments import InstrumentRegistry, INSTRUMENT_PRESETS
-from teracontrol.controllers import AppController
+from teracontrol.app.controller import AppController
 from teracontrol.gui.main_window import MainWindow
+
+from teracontrol.utils.logging import setup_logging, get_logger
 
 log = get_logger(__name__)
 

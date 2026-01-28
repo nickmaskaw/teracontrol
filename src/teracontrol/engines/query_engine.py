@@ -1,20 +1,23 @@
-from typing import Callable, Protocol
+from teracontrol.core.instruments import InstrumentRegistry
+from teracontrol.utils.logging import get_logger
 
-
-class Queryable(Protocol):
-    """Minimal protocol for querying instruments."""
-    def query(self, command: str) -> str: ...
+log = get_logger(__name__)
 
 
 class QueryEngine:
     def __init__(
         self,
-        instruments: dict[str, Queryable],
-        on_response: Callable
+        registry: InstrumentRegistry,
     ):
-        self.instruments = dict(instruments)
-        self.on_response = on_response
+        self._registry = registry
 
-    def query(self, name: str, query: str):
-        response = self.instruments[name].query(query)
-        self.on_response(name, query, response)
+    def query(self, name: str, cmd: str):
+        try:
+            inst = self._registry.get(name)
+            response = inst.query(cmd)
+            log.info(f"Query response: {name} -> {cmd} -> {response}")
+            return response
+        
+        except Exception:
+            log.error(f"Failed to query {name}: {cmd}", exc_info=True)
+            return f"Failed to query {name}: {cmd}"

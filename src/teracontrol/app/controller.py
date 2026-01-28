@@ -11,7 +11,7 @@ from teracontrol.hal import (
     MercuryITCController,
     MercuryIPSController,
 )
-from teracontrol.engines import ConnectionEngine
+from teracontrol.engines import ConnectionEngine, QueryEngine
 
 
 class AppController(QtCore.QObject):
@@ -23,6 +23,7 @@ class AppController(QtCore.QObject):
         self._register_instruments()
 
         self._connection = ConnectionEngine(self._registry)
+        self._query = QueryEngine(self._registry)
 
     # --- Internal helpers ------------------------------------------------
 
@@ -31,6 +32,11 @@ class AppController(QtCore.QObject):
         self._registry.register(TEMP, MercuryITCController())
         self._registry.register(FIELD, MercuryIPSController())
 
+    # --- Public API ------------------------------------------------------
+
+    def instrument_names(self) -> list[str]:
+        return list(self._registry.names())
+
     # --- Connection API --------------------------------------------------
 
     def connect(self, name: str, address: str) -> bool:
@@ -38,3 +44,8 @@ class AppController(QtCore.QObject):
     
     def disconnect(self, name: str) -> None:
         self._connection.disconnect(name)
+
+    # --- Query API -------------------------------------------------------
+
+    def query(self, name: str, cmd: str) -> str:
+        return self._query.query(name, cmd)
