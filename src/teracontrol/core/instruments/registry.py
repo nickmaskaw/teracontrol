@@ -5,22 +5,14 @@ from teracontrol.hal import BaseHAL
 class InstrumentRegistry:
     """
     Authoritative owner of all HAL instances.
-
-    Responsibilities:
-    - Own HAL lifetimes
-    - Mediate connection/disconnection
-    - Provide access to instruments
-
-    This class does NOT:
-    - Decide connection parameters
-    - Implement retry or policy
-    - Know about GUI or experiments
     """
-    
+
     def __init__(self):
         self._instruments: Dict[str, BaseHAL] = {}
 
-    # --- Ownership --------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Ownership
+    # ------------------------------------------------------------------
 
     def register(self, name: str, instrument: BaseHAL) -> None:
         if name in self._instruments:
@@ -32,12 +24,14 @@ class InstrumentRegistry:
             return self._instruments[name]
         except KeyError:
             raise KeyError(f"Instrument {name} not registered")
-        
+    
+    # ------------------------------------------------------------------
+    # Convenience
+    # ------------------------------------------------------------------
+
     def names(self) -> list[str]:
         return list(self._instruments.keys())
     
-    # --- Status ----------------------------------------------------------
-
     def is_connected(self, name: str) -> bool:
         inst = self.get(name)
         return inst.is_connected()
@@ -45,3 +39,8 @@ class InstrumentRegistry:
     def describe(self, name: str) -> dict[str, Any]:
         inst = self.get(name)
         return inst.status()
+    
+    def disconnect_all(self) -> None:
+        for name in self.names():
+            inst = self.get(name)
+            inst.disconnect()

@@ -1,19 +1,12 @@
 from typing import Any
 
-from teracontrol.hal import BaseHAL
+from teracontrol.core.instruments import InstrumentRegistry, THZ
 from teracontrol.core.data import capture_data, Waveform, DataAtom
 
 
 class CaptureEngine:
-    def __init__(self, thz: BaseHAL, itc: BaseHAL, ips: BaseHAL):
-        self._thz = thz
-        self._itc = itc
-        self._ips = ips
-
-        self.time_header = "time_abs_ps"
-        self.signal_header = (
-            "signal1_na" if self._thz.channel == 1 else "signal2_na"
-        )
+    def __init__(self, registry: InstrumentRegistry):
+        self._registry = registry
 
     # ------------------------------------------------------------------
     # Public API
@@ -29,18 +22,21 @@ class CaptureEngine:
     # ------------------------------------------------------------------
 
     def _read_status(self, meta: dict[str, Any]) -> dict[str, Any]:
-        return {
-            "Metadata": meta,
-            "THz System": self._thz.status(),
-            "Temperature Controller": self._itc.status(),
-            "Field Controller": self._ips.status(),
-        }
-    
+        status = {"Metadata": meta}
+        for name in self._registry.names():
+            status[name] = self._registry.describe(name)
+        return status
+        
     def _read_data(self) -> Waveform:
-        trace = self._thz.acquire_averaged_trace()
+        if THZ not in self._registry.names():
+            raise KeyError(f"No {THZ} instrument registered")
+        
+        thz = self._registry.get(THZ)
+
+        trace = thz.acquire_averaged_trace()
         time_header = "time_abs_ps"
         signal_header = (
-            "signal1_na" if self._thz.channel == 1 else "signal2_na"
+            "signal1_na" if thz.channel == 1 else "signal2_na"
         )
 
         return Waveform(

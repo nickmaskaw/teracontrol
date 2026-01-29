@@ -48,7 +48,7 @@ class TrendsWidget(QtWidgets.QWidget):
 
     def clear(self) -> None:
         self._x.clear()
-        self._peak_amp.clear()
-        self._peak_pos.clear()
+        self._amp.clear()
+        self._pos.clear()
         self.amp_curve.clear()
         self.pos_curve.clear()

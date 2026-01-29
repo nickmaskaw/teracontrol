@@ -19,7 +19,7 @@ class ExperimentSignals(QtCore.QObject):
     # step lifecycle
     step_started = QtCore.Signal(dict)          # axis.describe(value)
     data_ready = QtCore.Signal(DataAtom, dict)  # streaming acquisition
-    step_finished = QtCore.Signal(dict)         # axis.describe(value)
+    step_finished = QtCore.Signal(int, int)     # step index, total steps
 
 
 class ExperimentWorker(QtCore.QObject):
@@ -32,6 +32,7 @@ class ExperimentWorker(QtCore.QObject):
         self.runner = runner
         self.signals = ExperimentSignals()
         self._abort = False
+        self._paused = False
 
     @QtCore.Slot()
     def run(self):
@@ -40,15 +41,26 @@ class ExperimentWorker(QtCore.QObject):
         """
         sweep = self.runner.sweep
         axis = sweep.axis
+        npoints = len(list(sweep.points()))
 
         self.signals.started.emit(sweep.describe())
 
         try:
-            for value in sweep.points():
+            for i, value in enumerate(sweep.points()):
+                
+                # --- Abort check ---
                 if self._abort:
                     self.runner.abort()
                     self.signals.aborted.emit()
                     return
+                
+                # --- Pause loop ---
+                while self._paused:
+                    if self._abort:
+                        self.runner.abort()
+                        self.signals.aborted.emit()
+                        return
+                    QtCore.QThread.msleep(50)
 
                 axis.goto(value)
 
@@ -62,13 +74,19 @@ class ExperimentWorker(QtCore.QObject):
                 self.runner.experiment.record.append(atom)
 
                 self.signals.data_ready.emit(atom, meta)
-                self.signals.step_finished.emit(meta)
+                self.signals.step_finished.emit(i+1, npoints)
 
         finally:
             self.signals.finished.emit()
 
+    @QtCore.Slot()
     def abort(self):
-        """
-        Request cooperative abortion of the experiment.
-        """
         self._abort = True
+
+    @QtCore.Slot()
+    def pause(self):
+        self._paused = True
+
+    @QtCore.Slot()
+    def resume(self):
+        self._paused = False

@@ -3,6 +3,8 @@ from PySide6 import QtWidgets
 
 from teracontrol.app.controller import AppController
 from teracontrol.core.instruments import InstrumentPreset
+from teracontrol.core.experiment import SweepAxis
+from teracontrol.core.data import DataAtom
 
 from .monitor import MonitorWidget
 from .instrument import ConnectionWidget, QueryWidget
@@ -18,20 +20,13 @@ class MainWindow(QtWidgets.QMainWindow):
     APP_NAME = "TeraControl 0.1.0-dev"
     WIN_SIZE = (1200, 800)
 
-    def __init__(
-        self,
-        controller: AppController,
-        instrument_presets: dict[str, InstrumentPreset],
-    ) -> None:
+    def __init__(self, controller: AppController) -> None:
         super().__init__()
 
         self._controller: AppController = controller
-        self._instrument_names: list[str] = controller.instrument_names()
-        self._filtered_presets: dict[str, InstrumentPreset] = {
-            name: instrument_presets[name]
-            for name in self._instrument_names
-            if name in instrument_presets
-        }
+        self._instrument_names = controller.instrument_names()
+        self._axis_catalog = controller.axis_catalog()
+        self._presets = controller.presets()
 
         self._setup_window()
         self._setup_menus()
@@ -40,7 +35,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._setup_layout()
         self._wire_signals()
 
-    # --- Setups ------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # UI Setup
+    # ------------------------------------------------------------------
 
     def _setup_window(self) -> None:
         self.setWindowTitle(self.APP_NAME)
@@ -54,14 +51,16 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def _setup_widgets(self) -> None:
         self.widgets = {
-            "connection": ConnectionWidget(self._filtered_presets),
+            "connection": ConnectionWidget(self._instrument_names),
             "query": QueryWidget(self._instrument_names),
-            "experiment": ExperimentControlWidget(),
+            "experiment": ExperimentControlWidget(self._axis_catalog),
             "monitor": MonitorWidget(),
         }
     
     def _load_presets(self) -> None:
-        self.widgets["connection"].apply_presets(self._filtered_presets)
+        if "instruments" in self._presets:
+            preset = self._presets["instruments"]
+            self.widgets["connection"].apply_presets(preset)
     
     def _setup_layout(self) -> None:
         self.setCentralWidget(self.widgets["monitor"])
@@ -88,6 +87,20 @@ class MainWindow(QtWidgets.QMainWindow):
         }
 
     def _wire_signals(self) -> None:
+
+        # --- Controller -> GUI ---
+        self._controller.data_ready.connect(self._on_new_data)
+        self._controller.experiment_finished.connect(
+            self._on_finished_experiment
+        )
+        self._controller.sweep_created.connect(
+            self._on_sweep_created
+        )
+        self._controller.step_finished.connect(
+            self._on_step_finished
+        )
+        
+        # --- Connection ---
         self.widgets["connection"].connect_requested.connect(
             self._on_connect
         )
@@ -95,11 +108,28 @@ class MainWindow(QtWidgets.QMainWindow):
             self._on_disconnect
         )
         
+        # --- Query ---
         self.widgets["query"].query_requested.connect(
             self._on_query
         )
 
-    # --- GUI -> Controller callbacks -------------------------------------
+        # --- Experiment ---
+        self.widgets["experiment"].run_requested.connect(
+            self._on_run_experiment
+        )
+        self.widgets["experiment"].pause_requested.connect(
+            self._on_pause_experiment
+        )
+        self.widgets["experiment"].resume_requested.connect(
+            self._on_resume_experiment
+        )
+        self.widgets["experiment"].abort_requested.connect(
+            self._on_abort_experiment
+        )
+
+    # ------------------------------------------------------------------
+    # GUI -> Controller callbacks
+    # ------------------------------------------------------------------
 
     def _on_connect(self, name: str, address: str) -> None:
         ok = self._controller.connect(name, address)
@@ -114,3 +144,39 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_query(self, name: str, cmd: str) -> None:
         response = self._controller.query(name, cmd)
         self.widgets["query"].update_response(name, cmd, response)
+
+    def _on_run_experiment(self, config: dict[str, Any]) -> None:
+        ok = self._controller.run_experiment(config)
+        if ok:
+            self.widgets["experiment"].set_state("RUNNING")
+            self.widgets["experiment"].set_progress(0, 0)
+
+    def _on_pause_experiment(self) -> None:
+        ok = self._controller.pause_experiment()
+        if ok:
+            self.widgets["experiment"].set_state("PAUSED")
+
+    def _on_resume_experiment(self) -> None:
+        ok = self._controller.resume_experiment()
+        if ok:
+            self.widgets["experiment"].set_state("RUNNING")
+
+    def _on_abort_experiment(self) -> None:
+        ok = self._controller.abort_experiment()
+        if ok:
+            self.widgets["experiment"].set_state("IDLE")
+
+    def _on_finished_experiment(self) -> None:
+        self.widgets["experiment"].set_state("IDLE")
+
+    def _on_new_data(self, data: DataAtom, meta: dict[str, Any]) -> None:
+        self.widgets["monitor"].on_new_waveform(data.payload, meta)
+
+    def _on_sweep_created(self, npoints: int) -> None:
+        self.widgets["monitor"].clear()
+        self.widgets["monitor"].configure(npoints)
+
+    def _on_step_finished(self, index: int, total: int) -> None:
+        self.widgets["experiment"].set_progress(index, total)
+
+    # ------------------------------------------------------------------

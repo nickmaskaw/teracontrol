@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from typing import Any
 from PySide6 import QtWidgets, QtCore
 
 from teracontrol.utils.logging import get_logger
@@ -7,59 +10,77 @@ log = get_logger(__name__)
 
 class ExperimentControlWidget(QtWidgets.QWidget):
 
-    # --- Signals ---
-    axis_selected = QtCore.Signal(str)  # name
+    STATES = ("IDLE", "RUNNING", "PAUSED", "ERROR")
 
+    # --- Signals ---
+    run_requested = QtCore.Signal(dict)  # Snapshot of config
+    pause_requested = QtCore.Signal()
+    resume_requested = QtCore.Signal()
+    abort_requested = QtCore.Signal()
+    axis_selected = QtCore.Signal(str)  # Axis name
     
-    def __init__(self):
+    def __init__(self, axis_catalog: dict[str, type] | None = None):
         super().__init__()
 
+        self._axis_catalogue = axis_catalog or {}
+        self._state = "IDLE"
+
+        self._build_widgets()
+        self._setup_layout()
+        self._preconfigure_widgets()
+        self._wire_signals()
+
+        self.set_state("IDLE")
+    
+    # ------------------------------------------------------------------
+    # Widget construction
+    # ------------------------------------------------------------------
+
+    def _build_widgets(self) -> None:
+        # --- Axis Selection ---
         self._axis_dropdown = QtWidgets.QComboBox()
 
-        self._start = QtWidgets.QDoubleSpinBox(suffix="  ")
-        self._stop = QtWidgets.QDoubleSpinBox(suffix="  ")
-        self._step = QtWidgets.QDoubleSpinBox(suffix="  ")
+        # --- Parameters ---
+        self._start = QtWidgets.QDoubleSpinBox()
+        self._stop = QtWidgets.QDoubleSpinBox()
+        self._step = QtWidgets.QDoubleSpinBox()
         self._dwell = QtWidgets.QDoubleSpinBox(suffix=" s")
         
+        # --- Metadata ---
         self._operator = QtWidgets.QLineEdit()
         self._sample = QtWidgets.QLineEdit()
         self._comment = QtWidgets.QPlainTextEdit()
 
-        self._setup_top_widget()
-        self._setup_pars_group()
-        self._setup_meta_group()
+        # --- Controls ---
+        self._run = QtWidgets.QPushButton("Run")
+        self._pause = QtWidgets.QPushButton("Pause")
+        self._abort = QtWidgets.QPushButton("Abort")
+        self._progress = QtWidgets.QProgressBar()
 
-        self._preconfigure_widgets()
-
-        layout = QtWidgets.QVBoxLayout()
-        layout.addWidget(self._top_widget)
-        layout.addWidget(self._pars_group)
-        layout.addWidget(self._meta_group)
-        self.setLayout(layout)
-    
-    # --- Internal Helpers ------------------------------------------------
-
-    def _setup_top_widget(self) -> None:
-        self._top_widget = QtWidgets.QWidget()
-        layout = QtWidgets.QFormLayout()
-        layout.addRow("Axis", self._axis_dropdown)
-        self._top_widget.setLayout(layout)
-    
-    def _setup_pars_group(self) -> None:
-        self._pars_group = QtWidgets.QGroupBox("Parameters")
+        self._top_widget = self._build_top_widget()
+        self._pars_group = self._build_pars_group()
+        self._meta_group = self._build_meta_group()
+        self._bottom_widget = self._build_bottom_widget()
         
-        layout = QtWidgets.QGridLayout()
+    def _build_top_widget(self) -> QtWidgets.QWidget:
+        w = QtWidgets.QWidget()
+        layout = QtWidgets.QFormLayout(w)
+        layout.addRow("Axis", self._axis_dropdown)
+        return w
+
+    def _build_pars_group(self) -> QtWidgets.QWidget:
+        box = QtWidgets.QGroupBox("Parameters")
+        layout = QtWidgets.QGridLayout(box)
+        
         layout.setHorizontalSpacing(8)
         layout.setVerticalSpacing(6)
         
         layout.addWidget(QtWidgets.QLabel("Start"), 0, 0)
         layout.addWidget(self._start,               0, 1)
-
         layout.addWidget(QtWidgets.QLabel("Stop"),  1, 0)
         layout.addWidget(self._stop,                1, 1)
 
         layout.addWidget(QtWidgets.QLabel("Step"),  0, 3)
-
         layout.addWidget(self._step,                0, 4)
         layout.addWidget(QtWidgets.QLabel("Dwell"), 1, 3)
         layout.addWidget(self._dwell,               1, 4)
@@ -67,28 +88,141 @@ class ExperimentControlWidget(QtWidgets.QWidget):
         layout.setColumnMinimumWidth(2, 16)
         layout.setColumnStretch(5, 1)
 
-        self._pars_group.setLayout(layout)
-
-    def _setup_meta_group(self) -> None:
-        self._meta_group = QtWidgets.QGroupBox("Metadata")
-        layout = QtWidgets.QFormLayout()
+        return box
+    
+    def _build_meta_group(self) -> QtWidgets.QWidget:
+        box = QtWidgets.QGroupBox("Metadata")
+        layout = QtWidgets.QFormLayout(box)
         layout.addRow("Operator", self._operator)
         layout.addRow("Sample", self._sample)
         layout.addRow("Comment", self._comment)
-        self._meta_group.setLayout(layout)        
+        return box
+
+    def _build_bottom_widget(self) -> QtWidgets.QWidget:
+        w = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(w)
+        layout.addWidget(self._run)
+        layout.addWidget(self._pause)
+        layout.addWidget(self._abort)
+        layout.addStretch(1)
+        layout.addWidget(self._progress)
+        return w
+
+    def _setup_layout(self) -> None:
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(self._top_widget)
+        layout.addWidget(self._pars_group)
+        layout.addWidget(self._meta_group)
+        layout.addWidget(self._bottom_widget)
 
     def _preconfigure_widgets(self) -> None:
-        for spinbox in [self._start, self._stop, self._step, self._dwell]:
+        if self._axis_catalogue:
+            self._axis_dropdown.addItems(self._axis_catalogue)
+            self._update_axis(self.current_axis())
+        
+        for spinbox in (self._start, self._stop, self._step, self._dwell):
             spinbox.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
             spinbox.setAlignment(QtCore.Qt.AlignRight)
-            spinbox.setDecimals(3)
             spinbox.setRange(-10000, 10000)
 
-    # --- Public API ------------------------------------------------------
+        self._dwell.setRange(0, 1000)
+        self._dwell.setDecimals(1)
 
-    def load_axis_list(self, axis_names: list[str]) -> None:
-        self._axis_dropdown.clear()
-        self._axis_dropdown.addItems(axis_names)
+    def _wire_signals(self) -> None:
+        self._run.clicked.connect(self._on_run_clicked)
+        self._pause.clicked.connect(self._on_pause_clicked)
+        self._abort.clicked.connect(self._on_abort_clicked)
+        self._axis_dropdown.currentTextChanged.connect(self._on_axis_selected)
 
-    def current_axis(self) -> str | None:
+    # ------------------------------------------------------------------
+    # UI -> Controller intent
+    # ------------------------------------------------------------------
+
+    def _on_run_clicked(self) -> None:
+        if self._state == "IDLE":
+            self.run_requested.emit(self.current_config())
+
+    def _on_pause_clicked(self) -> None:
+        if self._state == "RUNNING":
+            self.pause_requested.emit()
+        elif self._state == "PAUSED":
+            self.resume_requested.emit()
+
+    def _on_abort_clicked(self) -> None:
+        if self._state in ["RUNNING", "PAUSED"]:
+            self.abort_requested.emit()
+
+    def _on_axis_selected(self, axis_name: str) -> None:
+        self._update_axis(axis_name)
+        self.axis_selected.emit(axis_name)
+
+    # ------------------------------------------------------------------
+    # Controller -> GUI callbacks
+    # ------------------------------------------------------------------
+
+    def set_state(self, state: str) -> None:
+        if state not in self.STATES:
+            raise ValueError(f"Invalid state: {state}")
+        
+        self._state = state
+        
+        is_idle = state in ("IDLE", "ERROR")
+        is_paused = state == "PAUSED"
+
+        self._set_controls_enabled(is_idle)
+        self._pause.setText("Resume" if is_paused else "Pause")
+
+    def _set_controls_enabled(self, idle: bool) -> None:
+        self._top_widget.setEnabled(idle)
+        self._pars_group.setEnabled(idle)
+        self._meta_group.setEnabled(idle)
+        
+        self._run.setEnabled(idle)
+        self._pause.setEnabled(not idle)
+        self._abort.setEnabled(not idle)
+
+    def set_progress(self, current: int, total: int) -> None:
+        self._progress.setMaximum(total)
+        self._progress.setValue(current)
+
+    # ------------------------------------------------------------------
+    # Axis handling
+    # ------------------------------------------------------------------
+
+    def _update_axis(self, axis_name: str) -> None:
+        axis_cls = self._axis_catalogue[axis_name]
+        decimals = axis_cls.decimals
+        unit = axis_cls.unit
+
+        for spinbox in (self._start, self._stop, self._step):
+            spinbox.setDecimals(decimals)
+            spinbox.setSuffix(f" {unit}")
+
+    # ------------------------------------------------------------------
+    # Snapshot API
+    # ------------------------------------------------------------------
+
+    def current_axis(self) -> str:
         return self._axis_dropdown.currentText() or None
+    
+    def current_pars(self) -> dict[str, Any]:
+        return {
+            "start": self._start.value(),
+            "stop": self._stop.value(),
+            "step": self._step.value(),
+            "dwell": self._dwell.value(),
+        }
+    
+    def current_meta(self) -> dict[str, Any]:
+        return {
+            "operator": self._operator.text(),
+            "sample": self._sample.text(),
+            "comment": self._comment.toPlainText(),
+        }
+    
+    def current_config(self) -> dict[str, Any]:
+        return {
+            "axis": self.current_axis(),
+            "pars": self.current_pars(),
+            "meta": self.current_meta(),
+        }

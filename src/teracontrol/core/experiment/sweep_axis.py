@@ -18,6 +18,7 @@ class SweepAxis(ABC):
     
     name: str = "axis"
     unit: str = ""
+    decimals: int = 3
 
     # Whether goto() is blocking and returns only when stable:
     blocking: bool = True
@@ -63,7 +64,7 @@ class SweepAxis(ABC):
     
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} name={self.name!r} unit={self.unit!r}>"
-    
+
 
 # =============================================================================
 # Axis implementations
@@ -80,7 +81,8 @@ class CountAxis(SweepAxis):
     """
 
     name = "count"
-    unit = "step"
+    unit = "#"
+    decimals = 0
     blocking = True
 
     def goto(self, value: float) -> None:
