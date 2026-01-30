@@ -20,9 +20,6 @@ class SweepAxis(ABC):
     unit: str = ""
     decimals: int = 3
 
-    # Whether goto() is blocking and returns only when stable:
-    blocking: bool = True
-
     def __init__(self):
         self._current: Optional[float] = None
 
@@ -30,10 +27,8 @@ class SweepAxis(ABC):
     def goto(self, value: float) -> None:
         """
         Move the axis to an absolute value.
-
-        Implementations may block until the value is reached and stable,
-        or return immediately if blocking=False.
         """
+        ...
 
     def read(self) -> Optional[float]:
         """
@@ -83,7 +78,6 @@ class CountAxis(SweepAxis):
     name = "count"
     unit = "#"
     decimals = 0
-    blocking = True
 
     def goto(self, value: float) -> None:
         # Count has no physical motion; just update state

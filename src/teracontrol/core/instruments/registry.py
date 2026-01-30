@@ -32,11 +32,22 @@ class InstrumentRegistry:
     def names(self) -> list[str]:
         return list(self._instruments.keys())
     
+    def types(self) -> dict[str, type[BaseHAL]]:
+        return {
+            name: inst.__class__
+            for name, inst in self._instruments.items()
+        }
+    
     def is_connected(self, name: str) -> bool:
         inst = self.get(name)
         return inst.is_connected()
     
     def describe(self, name: str) -> dict[str, Any]:
+        """
+        Retrieve instrument status.
+
+        Maybe not a good name.
+        """
         inst = self.get(name)
         return inst.status()
     

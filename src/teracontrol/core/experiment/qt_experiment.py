@@ -41,7 +41,7 @@ class ExperimentWorker(QtCore.QObject):
         """
         sweep = self.runner.sweep
         axis = sweep.axis
-        npoints = len(list(sweep.points()))
+        npoints = sweep.npoints()
 
         self.signals.started.emit(sweep.describe())
 

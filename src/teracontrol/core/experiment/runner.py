@@ -29,29 +29,3 @@ class SweepRunner:
         Request cooperative abortion of the sweep.
         """
         self._abort = True
-
-    def run(self) -> Experiment:
-        """
-        Run the sweep synchronously.
-
-        Returns the Experiment instance passed at construction time.
-        """
-        axis = self.sweep.axis
-
-        self.experiment.metadata.update(self.sweep.describe())
-
-        for value in self.sweep.points():
-            if self._abort:
-                break
-
-            axis.goto(value)
-
-            if self.sweep.dwell_s > 0:
-                time.sleep(self.sweep.dwell_s)
-
-            meta = axis.describe(value)
-            atom = self.capture(meta)
-
-            self.experiment.record.append(atom)
-
-        return self.experiment

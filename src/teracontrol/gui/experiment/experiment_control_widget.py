@@ -157,6 +157,8 @@ class ExperimentControlWidget(QtWidgets.QWidget):
     # ------------------------------------------------------------------
 
     def set_state(self, status: ExperimentStatus) -> None:
+        if status is ExperimentStatus.RUNNING:
+            self.set_progress(0, 0)
         idle = status in (ExperimentStatus.IDLE, ExperimentStatus.ERROR)
         paused = status is ExperimentStatus.PAUSED
 
@@ -168,7 +170,7 @@ class ExperimentControlWidget(QtWidgets.QWidget):
         self._pause.setEnabled(not idle)
         self._abort.setEnabled(not idle)
 
-        self._pause.setText("Resume" if paused else "Pause")        
+        self._pause.setText("Resume" if paused else "Pause")
 
     def set_progress(self, current: int, total: int) -> None:
         self._progress.setMaximum(total)

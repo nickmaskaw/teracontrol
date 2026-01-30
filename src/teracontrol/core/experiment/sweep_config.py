@@ -48,6 +48,12 @@ class SweepConfig:
                 yield x
                 x += self.step
 
+    def npoints(self) -> int:
+        """
+        Total number of points in the sweep.
+        """
+        return sum(1 for _ in self.points())
+
     def describe(self) -> dict:
         """
         Metadata describing the sweep configuration.
