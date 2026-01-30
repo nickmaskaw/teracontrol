@@ -10,6 +10,9 @@ from teracontrol.hal.mercury_ips import MercuryIPSController
 
 log = get_logger(__name__)
 
+PACKAGE_ROOT = Path(__file__).resolve().parents[3]
+LOG_DIR = PACKAGE_ROOT / "logs"
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -26,8 +29,8 @@ def parse_args():
     parser.add_argument(
         "--logfile",
         type=Path,
-        default="logs/temperature.log",
-        help="Log file path (default: logs/temperature.log)",
+        default=LOG_DIR / "temperature.log",
+        help="Log file path (default: <package_root>/logs/temperature.log)",
     )
 
     parser.add_argument(
@@ -67,7 +70,7 @@ def main():
 
     # Timestamped csv per run
     run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    csv_path = Path("logs/temperature") / f"temperature_{run_ts}.csv"
+    csv_path = Path(args.logfile).parent / f"temperature/temperature_{run_ts}.csv"
     csv_path.parent.mkdir(parents=True, exist_ok=True)
 
     setup_logging(
