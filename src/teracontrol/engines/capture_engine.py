@@ -12,10 +12,10 @@ class CaptureEngine:
     # Public API
     # ------------------------------------------------------------------
 
-    def capture(self, meta: dict[str, Any]) -> DataAtom:
+    def capture(self, meta: dict[str, Any], index: int = 0) -> DataAtom:
         read_status = lambda: self._read_status(meta)
         read_data = lambda: self._read_data()
-        return capture_data(read_status, read_data)
+        return capture_data(read_status, read_data, index=index)
 
     # ------------------------------------------------------------------
     # Internal helpers

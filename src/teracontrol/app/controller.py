@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
+from datetime import datetime
 from typing import Any
 from PySide6 import QtCore
 
 from teracontrol.app.context import AppContext
 from teracontrol.core.instruments import (
-    InstrumentRegistry,
     INSTRUMENT_PRESETS,
     THZ,
     TEMP,
@@ -19,19 +20,28 @@ from teracontrol.core.experiment import (
     ExperimentWorker,
     ExperimentStatus,
 )
-from teracontrol.core.data import Experiment, DataAtom
+from teracontrol.core.data import DataAtom
 from teracontrol.hal import (
     TeraflashTHzSystem,
     MercuryITCController,
     MercuryIPSController,
 )
-from teracontrol.engines import ConnectionEngine, QueryEngine, CaptureEngine
+from teracontrol.engines import (
+    ConnectionEngine,
+    QueryEngine,
+    CaptureEngine,
+    HDF5RunWriter,
+)
 from teracontrol.utils.logging import get_logger
 
 log = get_logger(__name__)
 
+PACKAGE_ROOT = Path(__file__).resolve().parents[3]
+
 
 class AppController(QtCore.QObject):
+
+    DATA_DIR = PACKAGE_ROOT / "data"
 
     # --- Signals (Controller -> GUI) ---
     experiment_status_updated = QtCore.Signal(ExperimentStatus)
@@ -42,6 +52,9 @@ class AppController(QtCore.QObject):
     
     def __init__(self, context: AppContext):
         super().__init__()
+
+        if not self.DATA_DIR.exists():
+            self.DATA_DIR.mkdir(parents=True, exist_ok=True)
 
         self._context = context
         self._registry = context.registry
@@ -74,11 +87,11 @@ class AppController(QtCore.QObject):
         }
 
     def _reset_experiment_state(self) -> None:
-        self._experiment: Experiment | None = None
         self._axis: SweepAxis | None = None
         self._sweep: SweepConfig | None = None
         self._runner: SweepRunner | None = None
         self._worker: ExperimentWorker | None = None
+        self._writer: HDF5RunWriter | None = None
         self._thread: QtCore.QThread | None = None
 
     def _experiment_running(self) -> bool:
@@ -192,21 +205,20 @@ class AppController(QtCore.QObject):
 
         npoints = len(list(self._sweep.points()))
         self.sweep_created.emit(npoints)
-            
-        self._experiment = Experiment(
-            metadata={
-                "sweep": self._sweep.describe(),
-                "user": meta,
-            }
-        )
 
-        self._runner = SweepRunner(
-            self._sweep,
-            self._experiment,
-            self._capture.capture,
-        )
+        self._runner = SweepRunner(self._sweep, self._capture.capture)
 
         self._worker = ExperimentWorker(self._runner)
+
+        path = self.DATA_DIR / (
+            f"{datetime.now():%Y-%m-%d_%H-%M-%S}_{self._axis.name}.h5"
+        )
+
+        self._writer = HDF5RunWriter(path)
+        self._writer.open(
+            sweep_meta=self._sweep.describe(),
+            user_meta=meta,
+        )
 
     def _start_worker_thread(self) -> None:
         assert self._worker is not None
@@ -218,6 +230,9 @@ class AppController(QtCore.QObject):
             
         signals = self._worker.signals
         signals.data_ready.connect(self._on_data_ready)
+        signals.data_ready.connect(
+            lambda atom, _: self._writer.write(atom.index, atom)
+        )
         signals.step_finished.connect(self._on_step_finished)
 
         signals.started.connect(
@@ -226,8 +241,14 @@ class AppController(QtCore.QObject):
         signals.aborted.connect(
             lambda: self._set_status(ExperimentStatus.IDLE)
         )
+        signals.aborted.connect(
+            lambda: self._writer.close(status="aborted")
+        )
         signals.finished.connect(
             lambda: self._set_status(ExperimentStatus.IDLE)
+        )
+        signals.finished.connect(
+            lambda: self._writer.close(status="completed")
         )
 
         signals.finished.connect(self.experiment_finished)
@@ -244,6 +265,12 @@ class AppController(QtCore.QObject):
     # ------------------------------------------------------------------
 
     def _cleanup_experiment(self) -> None:
+        if self._writer is not None:
+            try:
+                self._writer.close(status="aborted")
+            except Exception:
+                pass
+
         self._reset_experiment_state()
         self._set_status(ExperimentStatus.IDLE)
         log.debug("Experiment state cleaned up")

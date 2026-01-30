@@ -70,8 +70,7 @@ class ExperimentWorker(QtCore.QObject):
                 meta = axis.describe(value)
                 self.signals.step_started.emit(meta)
 
-                atom = self.runner.capture(meta)
-                self.runner.experiment.record.append(atom)
+                atom = self.runner.capture(meta, index=i+1)
 
                 self.signals.data_ready.emit(atom, meta)
                 self.signals.step_finished.emit(i+1, npoints)

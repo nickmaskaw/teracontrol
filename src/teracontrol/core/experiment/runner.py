@@ -4,7 +4,6 @@ import time
 from typing import Callable
 
 from teracontrol.core.data import DataAtom
-from teracontrol.core.data import Experiment
 from .sweep_config import SweepConfig
 
 
@@ -16,11 +15,9 @@ class SweepRunner:
     def __init__(
         self,
         sweep: SweepConfig,
-        experiment: Experiment,
         capture: Callable[[dict], DataAtom],
     ):
         self.sweep = sweep
-        self.experiment = experiment
         self.capture = capture
         self._abort = False
 

@@ -14,11 +14,24 @@ class Waveform:
     time: np.ndarray
     signal: np.ndarray
 
+    def to_dict(self) -> dict[str, np.ndarray]:
+        return {
+            "time": self.time,
+            "signal": self.signal,
+        }
+
 @dataclass(frozen=True)
 class WaveSpectrum:
     freq: np.ndarray
     amp: np.ndarray
     phase: np.ndarray
+
+    def to_dict(self) -> dict[str, np.ndarray]:
+        return {
+            "freq": self.freq,
+            "amp": self.amp,
+            "phase": self.phase,
+        }
 
 # --- FFT helper ---
 
@@ -59,6 +72,7 @@ class DataAtom:
     timestamp: datetime
     status: dict[str, Any]
     payload: Any
+    index: int
 
 
 # =============================================================================
@@ -68,6 +82,7 @@ class DataAtom:
 def capture_data(
         read_status: Callable[[], dict[str, Any]],
         read_data: Callable[[], Any],
+        index: int = 0,
 ):  
     timestamp = datetime.now().astimezone().isoformat()
     status = read_status()
@@ -77,4 +92,5 @@ def capture_data(
         timestamp=timestamp,
         status=status,
         payload=payload,
+        index=index,
     )
