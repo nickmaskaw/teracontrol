@@ -3,3 +3,4 @@ from .sweep_config import SweepConfig
 from .runner import SweepRunner
 from .qt_experiment import ExperimentWorker, ExperimentSignals
 from .catalog import AXIS_CATALOG
+from .status import ExperimentStatus

@@ -4,6 +4,7 @@ from pathlib import Path
 from PySide6 import QtWidgets
 
 from teracontrol.core.instruments import InstrumentRegistry
+from teracontrol.app.context import AppContext
 from teracontrol.app.controller import AppController
 from teracontrol.gui.main_window import MainWindow
 from teracontrol.utils.logging import setup_logging, get_logger
@@ -26,7 +27,9 @@ def main() -> None:
         app = QtWidgets.QApplication(sys.argv)
 
         registry = InstrumentRegistry()
-        controller = AppController(registry)
+        context = AppContext(registry=registry)
+
+        controller = AppController(context)
         window = MainWindow(controller)
 
         window.show()

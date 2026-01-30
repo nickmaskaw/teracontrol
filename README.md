@@ -1,3 +1,4 @@
+
 ```
 teracontrol
 ├─ configs
@@ -10,7 +11,6 @@ teracontrol
 ├─ LICENSE
 ├─ pyproject.toml
 ├─ README.md
-├─ scripts
 ├─ src
 │  └─ teracontrol
 │     ├─ app
@@ -24,6 +24,7 @@ teracontrol
 │     │  └─ __init__.py
 │     ├─ core
 │     │  ├─ experiment
+│     │  │  ├─ catalog.py
 │     │  │  ├─ qt_experiment.py
 │     │  │  ├─ runner.py
 │     │  │  ├─ sweep_axis.py
@@ -41,7 +42,6 @@ teracontrol
 │     │  ├─ query_engine.py
 │     │  └─ __init__.py
 │     ├─ gui
-│     │  ├─ dock_widget.py
 │     │  ├─ experiment
 │     │  │  ├─ experiment_control_widget.py
 │     │  │  └─ __init__.py
@@ -50,6 +50,9 @@ teracontrol
 │     │  │  ├─ query_widget.py
 │     │  │  └─ __init__.py
 │     │  ├─ main_window.py
+│     │  ├─ misc
+│     │  │  ├─ dock_widget.py
+│     │  │  └─ __init__.py
 │     │  ├─ monitor
 │     │  │  ├─ curve_list_widget.py
 │     │  │  ├─ monitor_widget.py

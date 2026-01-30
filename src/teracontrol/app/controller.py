@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 from PySide6 import QtCore
 
+from teracontrol.app.context import AppContext
 from teracontrol.core.instruments import (
     InstrumentRegistry,
     INSTRUMENT_PRESETS,
@@ -16,6 +17,7 @@ from teracontrol.core.experiment import (
     SweepConfig,
     SweepRunner,
     ExperimentWorker,
+    ExperimentStatus,
 )
 from teracontrol.core.data import Experiment, DataAtom
 from teracontrol.hal import (
@@ -32,19 +34,20 @@ log = get_logger(__name__)
 class AppController(QtCore.QObject):
 
     # --- Signals (Controller -> GUI) ---
+    experiment_status_updated = QtCore.Signal(ExperimentStatus)
     data_ready = QtCore.Signal(DataAtom, dict)
     experiment_finished = QtCore.Signal()
     sweep_created = QtCore.Signal(int)
     step_finished = QtCore.Signal(int, int)
     
-    def __init__(self, registry: InstrumentRegistry):
+    def __init__(self, context: AppContext):
         super().__init__()
 
-        # --- Registry ---
-        self._registry = registry
+        self._context = context
+        self._registry = context.registry
+
         self._register_instruments()
 
-        # --- Presets ---
         self._presets: dict[str, Any] = {}
         self._load_presets()
 
@@ -61,8 +64,8 @@ class AppController(QtCore.QObject):
 
     def _register_instruments(self) -> None:
         self._registry.register(THZ, TeraflashTHzSystem())
-        #self._registry.register(TEMP, MercuryITCController())
-        #self._registry.register(FIELD, MercuryIPSController())
+        self._registry.register(TEMP, MercuryITCController())
+        self._registry.register(FIELD, MercuryIPSController())
 
     def _load_presets(self) -> None:
         self._presets["instruments"] = {
@@ -79,7 +82,23 @@ class AppController(QtCore.QObject):
         self._thread: QtCore.QThread | None = None
 
     def _experiment_running(self) -> bool:
-        return self._worker is not None
+        return self._context.experiment_status in {
+            ExperimentStatus.RUNNING,
+            ExperimentStatus.PAUSED,
+        }
+    
+    def _set_status(self, status: ExperimentStatus) -> None:
+        if self._context.experiment_status == status:
+            return
+        
+        log.debug(
+            "Experiment status: %s -> %s",
+            self._context.experiment_status,
+            status,
+        )
+
+        self._context.experiment_status = status
+        self.experiment_status_updated.emit(status)
 
     # ------------------------------------------------------------------
     # Public API
@@ -127,21 +146,29 @@ class AppController(QtCore.QObject):
         try:
             self._build_experiment(config)
             self._start_worker_thread()
+            self._set_status(ExperimentStatus.RUNNING)
             return True
         
         except Exception:
             log.error("Failed to run experiment", exc_info=True)
+            self._set_status(ExperimentStatus.IDLE)
             self._cleanup_experiment()
             return False
         
     def abort_experiment(self) -> bool:
         return self._forward_worker_call("abort")
-    
+
     def pause_experiment(self) -> bool:
-        return self._forward_worker_call("pause")
+        ok = self._forward_worker_call("pause")
+        if ok:
+            self._set_status(ExperimentStatus.PAUSED)
+        return ok
     
     def resume_experiment(self) -> bool:
-        return self._forward_worker_call("resume")
+        ok = self._forward_worker_call("resume")
+        if ok:
+            self._set_status(ExperimentStatus.RUNNING)
+        return ok
 
     # ------------------------------------------------------------------
     # Experiment construction
@@ -191,9 +218,19 @@ class AppController(QtCore.QObject):
             
         signals = self._worker.signals
         signals.data_ready.connect(self._on_data_ready)
-        signals.finished.connect(self.experiment_finished)
         signals.step_finished.connect(self._on_step_finished)
 
+        signals.started.connect(
+            lambda _: self._set_status(ExperimentStatus.RUNNING)
+        )
+        signals.aborted.connect(
+            lambda: self._set_status(ExperimentStatus.IDLE)
+        )
+        signals.finished.connect(
+            lambda: self._set_status(ExperimentStatus.IDLE)
+        )
+
+        signals.finished.connect(self.experiment_finished)
         signals.finished.connect(self._thread.quit)
         signals.finished.connect(self._worker.deleteLater)
             
@@ -208,6 +245,7 @@ class AppController(QtCore.QObject):
 
     def _cleanup_experiment(self) -> None:
         self._reset_experiment_state()
+        self._set_status(ExperimentStatus.IDLE)
         log.debug("Experiment state cleaned up")
 
     def _forward_worker_call(self, method: str) -> bool:

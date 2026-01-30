@@ -2,14 +2,14 @@ from typing import Any
 from PySide6 import QtWidgets
 
 from teracontrol.app.controller import AppController
-from teracontrol.core.instruments import InstrumentPreset
-from teracontrol.core.experiment import SweepAxis
+from teracontrol.core.experiment import ExperimentStatus
+
 from teracontrol.core.data import DataAtom
 
 from .monitor import MonitorWidget
 from .instrument import ConnectionWidget, QueryWidget
 from .experiment import ExperimentControlWidget
-from .dock_widget import DockWidget
+from .misc import DockWidget
 
 from teracontrol.utils.logging import get_logger
 
@@ -23,7 +23,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, controller: AppController) -> None:
         super().__init__()
 
-        self._controller: AppController = controller
+        self._controller = controller
         self._instrument_names = controller.instrument_names()
         self._axis_catalog = controller.axis_catalog()
         self._presets = controller.presets()
@@ -90,14 +90,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # --- Controller -> GUI ---
         self._controller.data_ready.connect(self._on_new_data)
-        self._controller.experiment_finished.connect(
-            self._on_finished_experiment
-        )
-        self._controller.sweep_created.connect(
-            self._on_sweep_created
-        )
-        self._controller.step_finished.connect(
-            self._on_step_finished
+        self._controller.sweep_created.connect(self._on_sweep_created)
+        self._controller.step_finished.connect(self._on_step_finished)
+
+        self._controller.experiment_status_updated.connect(
+            self._on_experiment_status_changed
         )
         
         # --- Connection ---
@@ -115,21 +112,27 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # --- Experiment ---
         self.widgets["experiment"].run_requested.connect(
-            self._on_run_experiment
+            self._controller.run_experiment
         )
         self.widgets["experiment"].pause_requested.connect(
-            self._on_pause_experiment
+            self._controller.pause_experiment
         )
         self.widgets["experiment"].resume_requested.connect(
-            self._on_resume_experiment
+            self._controller.resume_experiment
         )
         self.widgets["experiment"].abort_requested.connect(
-            self._on_abort_experiment
+            self._controller.abort_experiment
         )
 
     # ------------------------------------------------------------------
-    # GUI -> Controller callbacks
+    # Slots
     # ------------------------------------------------------------------
+
+    def _on_experiment_status_changed(self, status: ExperimentStatus) -> None:
+        self.widgets["experiment"].set_state(status)
+        self.widgets["connection"].set_enabled(
+            status == ExperimentStatus.IDLE
+        )
 
     def _on_connect(self, name: str, address: str) -> None:
         ok = self._controller.connect(name, address)
@@ -145,30 +148,6 @@ class MainWindow(QtWidgets.QMainWindow):
         response = self._controller.query(name, cmd)
         self.widgets["query"].update_response(name, cmd, response)
 
-    def _on_run_experiment(self, config: dict[str, Any]) -> None:
-        ok = self._controller.run_experiment(config)
-        if ok:
-            self.widgets["experiment"].set_state("RUNNING")
-            self.widgets["experiment"].set_progress(0, 0)
-
-    def _on_pause_experiment(self) -> None:
-        ok = self._controller.pause_experiment()
-        if ok:
-            self.widgets["experiment"].set_state("PAUSED")
-
-    def _on_resume_experiment(self) -> None:
-        ok = self._controller.resume_experiment()
-        if ok:
-            self.widgets["experiment"].set_state("RUNNING")
-
-    def _on_abort_experiment(self) -> None:
-        ok = self._controller.abort_experiment()
-        if ok:
-            self.widgets["experiment"].set_state("IDLE")
-
-    def _on_finished_experiment(self) -> None:
-        self.widgets["experiment"].set_state("IDLE")
-
     def _on_new_data(self, data: DataAtom, meta: dict[str, Any]) -> None:
         self.widgets["monitor"].on_new_waveform(data.payload, meta)
 
@@ -178,5 +157,3 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _on_step_finished(self, index: int, total: int) -> None:
         self.widgets["experiment"].set_progress(index, total)
-
-    # ------------------------------------------------------------------

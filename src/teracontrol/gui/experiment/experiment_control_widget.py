@@ -3,14 +3,13 @@ from __future__ import annotations
 from typing import Any
 from PySide6 import QtWidgets, QtCore
 
+from teracontrol.core.experiment import ExperimentStatus
 from teracontrol.utils.logging import get_logger
 
 log = get_logger(__name__)
 
 
 class ExperimentControlWidget(QtWidgets.QWidget):
-
-    STATES = ("IDLE", "RUNNING", "PAUSED", "ERROR")
 
     # --- Signals ---
     run_requested = QtCore.Signal(dict)  # Snapshot of config
@@ -23,14 +22,13 @@ class ExperimentControlWidget(QtWidgets.QWidget):
         super().__init__()
 
         self._axis_catalogue = axis_catalog or {}
-        self._state = "IDLE"
 
         self._build_widgets()
         self._setup_layout()
         self._preconfigure_widgets()
         self._wire_signals()
 
-        self.set_state("IDLE")
+        self.set_state(ExperimentStatus.IDLE)
     
     # ------------------------------------------------------------------
     # Widget construction
@@ -129,28 +127,26 @@ class ExperimentControlWidget(QtWidgets.QWidget):
         self._dwell.setDecimals(1)
 
     def _wire_signals(self) -> None:
-        self._run.clicked.connect(self._on_run_clicked)
+        self._run.clicked.connect(
+            lambda: self.run_requested.emit(self.current_config())
+        )
         self._pause.clicked.connect(self._on_pause_clicked)
-        self._abort.clicked.connect(self._on_abort_clicked)
-        self._axis_dropdown.currentTextChanged.connect(self._on_axis_selected)
+        self._abort.clicked.connect(
+            lambda: self.abort_requested.emit()
+        )
+        self._axis_dropdown.currentTextChanged.connect(
+            self._on_axis_selected
+        )
 
     # ------------------------------------------------------------------
     # UI -> Controller intent
     # ------------------------------------------------------------------
 
-    def _on_run_clicked(self) -> None:
-        if self._state == "IDLE":
-            self.run_requested.emit(self.current_config())
-
     def _on_pause_clicked(self) -> None:
-        if self._state == "RUNNING":
+        if self._pause.text() == "Pause":
             self.pause_requested.emit()
-        elif self._state == "PAUSED":
+        else:
             self.resume_requested.emit()
-
-    def _on_abort_clicked(self) -> None:
-        if self._state in ["RUNNING", "PAUSED"]:
-            self.abort_requested.emit()
 
     def _on_axis_selected(self, axis_name: str) -> None:
         self._update_axis(axis_name)
@@ -160,19 +156,10 @@ class ExperimentControlWidget(QtWidgets.QWidget):
     # Controller -> GUI callbacks
     # ------------------------------------------------------------------
 
-    def set_state(self, state: str) -> None:
-        if state not in self.STATES:
-            raise ValueError(f"Invalid state: {state}")
-        
-        self._state = state
-        
-        is_idle = state in ("IDLE", "ERROR")
-        is_paused = state == "PAUSED"
+    def set_state(self, status: ExperimentStatus) -> None:
+        idle = status in (ExperimentStatus.IDLE, ExperimentStatus.ERROR)
+        paused = status is ExperimentStatus.PAUSED
 
-        self._set_controls_enabled(is_idle)
-        self._pause.setText("Resume" if is_paused else "Pause")
-
-    def _set_controls_enabled(self, idle: bool) -> None:
         self._top_widget.setEnabled(idle)
         self._pars_group.setEnabled(idle)
         self._meta_group.setEnabled(idle)
@@ -180,6 +167,8 @@ class ExperimentControlWidget(QtWidgets.QWidget):
         self._run.setEnabled(idle)
         self._pause.setEnabled(not idle)
         self._abort.setEnabled(not idle)
+
+        self._pause.setText("Resume" if paused else "Pause")        
 
     def set_progress(self, current: int, total: int) -> None:
         self._progress.setMaximum(total)
