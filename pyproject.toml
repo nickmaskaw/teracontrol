@@ -32,4 +32,5 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [project.scripts]
-teracontrol = "teracontrol.gui.main:main"
+teracontrol = "teracontrol.app.main:main"
+teracontrol-temp-log = "teracontrol.cli.temp_logger:main"

@@ -19,8 +19,8 @@ conda-env/
 Thumbs.db
 
 # Logs & data
-logs/
-data/
+/logs/
+/data/
 *.h5
 *.hdf5
 
