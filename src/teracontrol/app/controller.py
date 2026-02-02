@@ -171,6 +171,14 @@ class AppController(QtCore.QObject):
             log.warning("Experiment already running")
             return False
         
+        if config["meta"]["operator"] == "":
+            log.warning("Operator name not set")
+            return False
+        
+        if config["meta"]["sample"] == "":
+            log.warning("Sample name not set")
+            return False
+        
         self._presets["axes"][config["axis"]] = config["pars"]
 
         try:
