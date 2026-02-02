@@ -21,6 +21,7 @@ Thumbs.db
 # Logs & data
 /logs/
 /data/
+/config/
 *.h5
 *.hdf5
 
