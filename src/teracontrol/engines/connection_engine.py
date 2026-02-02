@@ -1,4 +1,3 @@
-from typing import Any
 from teracontrol.core.instruments import InstrumentRegistry
 from teracontrol.utils.logging import get_logger
 

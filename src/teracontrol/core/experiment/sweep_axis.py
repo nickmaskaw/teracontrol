@@ -82,3 +82,9 @@ class CountAxis(SweepAxis):
     def goto(self, value: float) -> None:
         # Count has no physical motion; just update state
         self.set_current(int(value))
+
+
+class TemperatureAxis(SweepAxis):
+    name = "temperature"
+    unit = "K"
+    decimals = 1
