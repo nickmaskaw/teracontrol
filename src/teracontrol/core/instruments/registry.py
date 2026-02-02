@@ -1,5 +1,8 @@
 from typing import Dict, Any
 from teracontrol.hal import BaseHAL
+from teracontrol.utils.logging import get_logger
+
+log = get_logger(__name__)
 
 
 class InstrumentRegistry:
@@ -9,6 +12,7 @@ class InstrumentRegistry:
 
     def __init__(self):
         self._instruments: Dict[str, BaseHAL] = {}
+        log.debug("Instrument registry initialized")
 
     # ------------------------------------------------------------------
     # Ownership
@@ -18,6 +22,7 @@ class InstrumentRegistry:
         if name in self._instruments:
             raise ValueError(f"Instrument {name} already registered")
         self._instruments[name] = instrument
+        log.debug("Instrument %s registered", name)
 
     def get(self, name: str) -> BaseHAL:
         try:

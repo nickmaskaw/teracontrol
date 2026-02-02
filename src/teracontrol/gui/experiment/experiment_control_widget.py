@@ -150,7 +150,6 @@ class ExperimentControlWidget(QtWidgets.QWidget):
 
     def _on_axis_selected(self, axis_name: str) -> None:
         self._update_axis(axis_name)
-        self.axis_selected.emit(axis_name)
 
     # ------------------------------------------------------------------
     # Controller -> GUI callbacks
@@ -176,6 +175,16 @@ class ExperimentControlWidget(QtWidgets.QWidget):
         self._progress.setMaximum(total)
         self._progress.setValue(current)
 
+    def load_presets(self, presets: dict[str, Any]) -> None:
+        try:
+            self._start.setValue(presets["start"])
+            self._stop.setValue(presets["stop"])
+            self._step.setValue(presets["step"])
+            self._dwell.setValue(presets["dwell"])
+        except Exception:
+            log.error("Failed to load presets", exc_info=True)
+            raise
+
     # ------------------------------------------------------------------
     # Axis handling
     # ------------------------------------------------------------------
@@ -188,6 +197,8 @@ class ExperimentControlWidget(QtWidgets.QWidget):
         for spinbox in (self._start, self._stop, self._step):
             spinbox.setDecimals(decimals)
             spinbox.setSuffix(f" {unit}")
+        
+        self.axis_selected.emit(axis_name)
 
     # ------------------------------------------------------------------
     # Snapshot API

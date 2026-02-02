@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from datetime import datetime
 from typing import Any
@@ -9,6 +10,55 @@ import json
 
 from teracontrol.core.data import DataAtom
 
+
+# =============================================================================
+# Helpers
+# =============================================================================
+
+def normalize_key(key: str) -> str:
+    """
+    Normalize a key to be a valid HDF5 attribute name.
+    """
+    key = key.strip()
+    key = re.sub(r"\s+", "_", key)  # spaces -> underscores
+    key = re.sub(r"[^\w\.]", "", key)  # drop weird chars
+    return key
+
+def flatten_dict(
+    data: dict[str, Any],
+    prefix: str = "",
+    separator: str = ".",
+) -> dict[str, Any]:
+    """
+    Recursively flatten a nested dict
+    """
+    out: dict[str, Any] = {}
+
+    for key, value in data.items():
+        norm_key = normalize_key(key)
+        full_key = f"{prefix}{separator}{norm_key}" if prefix else norm_key
+
+        if isinstance(value, dict):
+            out.update(flatten_dict(value, full_key, separator))
+        else:
+            out[full_key] = value
+
+    return out
+
+def write_attr(attrs, key: str, value: Any) -> None:
+    """
+    Safely write an HDF5 attribute
+    """
+    if value is None:
+        attrs[key] = ""
+    elif isinstance(value, (int, float, bool, str)):
+        attrs[key] = value
+    else:
+        attrs[key] = json.dumps(value)
+
+# =============================================================================
+# HDF5 writer
+# =============================================================================
 
 class HDF5RunWriter:
     """
@@ -37,19 +87,18 @@ class HDF5RunWriter:
 
         # --- Run attributes ---
         attrs = self._group.attrs
-        attrs["created_at"] = datetime.now().astimezone().isoformat()
-        attrs["status"] = "running"
+        write_attr(attrs, "created_at", datetime.now().astimezone().isoformat())
+        write_attr(attrs, "status", "running")
 
         # --- Sweep metadata ---
-        for k, v in sweep_meta.items():
-            attrs[f"sweep.{k}"] = v
+        flat_sweep = flatten_dict(sweep_meta, prefix="sweep")
+        for k, v in flat_sweep.items():
+            write_attr(attrs, k, v)
 
         # --- User metadata ---
-        for k, v in user_meta.items():
-            attrs[f"user.{k}"] = v
-
-        # --- Datasets (created lazily on first write) ---
-        self._index = 0
+        flat_user = flatten_dict(user_meta, prefix="user", separator=".")
+        for k, v in flat_user.items():
+            write_attr(attrs, k, v)
 
     def write(self, index: int, atom: DataAtom) -> None:
         """
@@ -77,19 +126,22 @@ class HDF5RunWriter:
         for key, array in payload.to_dict().items():
             g.create_dataset(key, data=array)
 
-        g.attrs["index"] = index
-        g.attrs["timestamp"] = atom.timestamp
+        write_attr(g.attrs, "index", index)
+        write_attr(g.attrs, "timestamp", atom.timestamp)
 
-        for key, value in atom.status.items():
-            g.attrs[f"status.{key}"] = json.dumps(value)
+        flat_status = flatten_dict(atom.status, prefix="status", separator=".")
+        for k, v in flat_status.items():
+            write_attr(g.attrs, k, v)
 
     def close(self, status: str = "completed") -> None:
         """
         Finalize and close the HDF5 file.
         """
         if self._group is not None:
-            self._group.attrs["status"] = status
-            self._group.attrs["finished_at"] = (
+            write_attr(self._group.attrs, "status", status)
+            write_attr(
+                self._group.attrs,
+                "finished_at",
                 datetime.now().astimezone().isoformat()
             )
 

@@ -1,6 +1,7 @@
 import sys
 import logging
 from pathlib import Path
+from datetime import datetime
 from PySide6 import QtWidgets
 
 from teracontrol.core.instruments import InstrumentRegistry
@@ -11,14 +12,16 @@ from teracontrol.utils.logging import setup_logging, get_logger
 
 log = get_logger(__name__)
 
-PACKAGE_ROOT = Path(__file__).resolve().parents[3]
-LOG_FILE = PACKAGE_ROOT / "logs/teracontrol.log"
-
 
 def main() -> None:
+    PACKAGE_ROOT = Path(__file__).resolve().parents[3]
+    
+    log_dir = PACKAGE_ROOT / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
     setup_logging(
         level=logging.INFO,
-        logfile=LOG_FILE,
+        logfile=log_dir / "teracontrol.log",
     )
 
     log.info("=== Application started ===")
@@ -27,13 +30,21 @@ def main() -> None:
         app = QtWidgets.QApplication(sys.argv)
 
         registry = InstrumentRegistry()
-        context = AppContext(registry=registry)
+        context = AppContext(
+            root_dir=PACKAGE_ROOT,
+            registry=registry,
+        )
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        context.set_dir("data", f"data/{today}")
+        context.set_dir("config", "config")
 
         controller = AppController(context)
         window = MainWindow(controller)
 
         window.show()
 
+        app.aboutToQuit.connect(controller.save_presets)
         app.aboutToQuit.connect(controller.cleanup)
 
         sys.exit(app.exec())

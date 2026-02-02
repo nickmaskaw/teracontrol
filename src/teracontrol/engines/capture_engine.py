@@ -1,6 +1,8 @@
 from typing import Any
 
-from teracontrol.core.instruments import InstrumentRegistry, THZ
+from teracontrol.core.instruments import (
+    InstrumentRegistry, InstrumentCatalog
+)
 from teracontrol.core.data import capture_data, Waveform, DataAtom
 
 
@@ -28,10 +30,12 @@ class CaptureEngine:
         return status
         
     def _read_data(self) -> Waveform:
-        if THZ not in self._registry.names():
-            raise KeyError(f"No {THZ} instrument registered")
+        if InstrumentCatalog.THZ not in self._registry.names():
+            raise KeyError(
+                f"No {InstrumentCatalog.THZ} instrument registered"
+            )
         
-        thz = self._registry.get(THZ)
+        thz = self._registry.get(InstrumentCatalog.THZ)
 
         trace = thz.acquire_averaged_trace()
         time_header = "time_abs_ps"

@@ -7,13 +7,12 @@ from PySide6 import QtCore
 
 from teracontrol.app.context import AppContext
 from teracontrol.core.instruments import (
-    INSTRUMENT_PRESETS,
-    THZ,
-    TEMP,
-    FIELD,
+    INSTRUMENT_DEFAULTS,
+    InstrumentCatalog,
 )
 from teracontrol.core.experiment import (
     AXIS_CATALOG,
+    AXIS_DEFAULTS,
     SweepAxis,
     SweepConfig,
     SweepRunner,
@@ -32,16 +31,13 @@ from teracontrol.engines import (
     CaptureEngine,
     HDF5RunWriter,
 )
+from teracontrol.config import load_config, save_config
 from teracontrol.utils.logging import get_logger
 
 log = get_logger(__name__)
 
-PACKAGE_ROOT = Path(__file__).resolve().parents[3]
-
 
 class AppController(QtCore.QObject):
-
-    DATA_DIR = PACKAGE_ROOT / "data"
 
     # --- Signals (Controller -> GUI) ---
     experiment_status_updated = QtCore.Signal(ExperimentStatus)
@@ -53,13 +49,14 @@ class AppController(QtCore.QObject):
     def __init__(self, context: AppContext):
         super().__init__()
 
-        if not self.DATA_DIR.exists():
-            self.DATA_DIR.mkdir(parents=True, exist_ok=True)
-
         self._context = context
         self._registry = context.registry
 
-        self._register_instruments()
+        self._registry.register(InstrumentCatalog.THZ, TeraflashTHzSystem())
+        self._registry.register(InstrumentCatalog.TEMP, MercuryITCController())
+        self._registry.register(InstrumentCatalog.FIELD, MercuryIPSController())
+
+        print(InstrumentCatalog.THZ)
 
         self._presets: dict[str, Any] = {}
         self._load_presets()
@@ -70,21 +67,26 @@ class AppController(QtCore.QObject):
         self._capture = CaptureEngine(self._registry)
 
         self._reset_experiment_state()
+        log.info("=== AppController initialized ===")
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _register_instruments(self) -> None:
-        self._registry.register(THZ, TeraflashTHzSystem())
-        self._registry.register(TEMP, MercuryITCController())
-        self._registry.register(FIELD, MercuryIPSController())
-
     def _load_presets(self) -> None:
-        self._presets["instruments"] = {
-            name: INSTRUMENT_PRESETS[name]
-            for name in self.instrument_names()
-        }
+        try:
+            presets_path = self._context.config_dir / "presets.json"
+            presets = load_config(presets_path)
+            log.info("Loaded presets file: %s", presets_path)
+            self._presets.update(presets)
+        except Exception:
+            log.warning("Failed to load presets file", exc_info=True)
+
+        if "instruments" not in self._presets:
+            self._presets["instruments"] = INSTRUMENT_DEFAULTS
+
+        if "axes" not in self._presets:
+            self._presets["axes"] = AXIS_DEFAULTS
 
     def _reset_experiment_state(self) -> None:
         self._axis: SweepAxis | None = None
@@ -130,11 +132,24 @@ class AppController(QtCore.QObject):
         self._registry.disconnect_all()
         self._cleanup_experiment()
 
+    def save_presets(self) -> None:
+        try:
+            presets_path = self._context.config_dir / "presets.json"
+            save_config(self._presets, presets_path)
+            log.info("Saved presets file: %s", presets_path)
+        except Exception:
+            log.warning("Failed to save presets file", exc_info=True)
+
     # ------------------------------------------------------------------
     # Connection API
     # ------------------------------------------------------------------
 
     def connect(self, name: str, address: str) -> bool:
+        try:
+            self._presets["instruments"][name]["address"] = address
+        except Exception:
+            log.error("Failed to update presets", exc_info=True)
+        
         return self._connection.connect(name, address)
     
     def disconnect(self, name: str) -> None:
@@ -155,6 +170,8 @@ class AppController(QtCore.QObject):
         if self._experiment_running():
             log.warning("Experiment already running")
             return False
+        
+        self._presets["axes"][config["axis"]] = config["pars"]
 
         try:
             self._build_experiment(config)
@@ -203,18 +220,15 @@ class AppController(QtCore.QObject):
             dwell_s=pars["dwell"],
         )
 
-        npoints = len(list(self._sweep.points()))
-        self.sweep_created.emit(npoints)
+        self.sweep_created.emit(self._sweep.npoints())
 
         self._runner = SweepRunner(self._sweep, self._capture.capture)
-
         self._worker = ExperimentWorker(self._runner)
 
-        path = self.DATA_DIR / (
+        self._writer = HDF5RunWriter(
+            self._context.data_dir /
             f"{datetime.now():%Y-%m-%d_%H-%M-%S}_{self._axis.name}.h5"
         )
-
-        self._writer = HDF5RunWriter(path)
         self._writer.open(
             sweep_meta=self._sweep.describe(),
             user_meta=meta,

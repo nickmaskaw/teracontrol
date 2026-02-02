@@ -61,6 +61,12 @@ class MainWindow(QtWidgets.QMainWindow):
         if "instruments" in self._presets:
             preset = self._presets["instruments"]
             self.widgets["connection"].apply_presets(preset)
+
+        if "axes" in self._presets:
+            preset = self._presets["axes"]
+            self.widgets["experiment"].load_presets(
+                preset[self.widgets["experiment"].current_axis()]
+            )
     
     def _setup_layout(self) -> None:
         self.setCentralWidget(self.widgets["monitor"])
@@ -123,6 +129,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.widgets["experiment"].abort_requested.connect(
             self._controller.abort_experiment
         )
+        self.widgets["experiment"].axis_selected.connect(
+            self._on_axis_selected
+        )
 
     # ------------------------------------------------------------------
     # Slots
@@ -157,3 +166,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _on_step_finished(self, index: int, total: int) -> None:
         self.widgets["experiment"].set_progress(index, total)
+
+    def _on_axis_selected(self, axis_name: str) -> None:
+        self.widgets["experiment"].load_presets(
+            self._controller.presets()["axes"][axis_name]
+        )

@@ -1,5 +1,5 @@
+from typing import Any
 from PySide6 import QtWidgets, QtCore
-from teracontrol.core.instruments import InstrumentPreset
 from teracontrol.utils.logging import get_logger
 
 log = get_logger(__name__)
@@ -51,6 +51,10 @@ class ConnectionWidget(QtWidgets.QWidget):
 
             layout.addRow(name, inner_layout)
 
+        self._connect_all = QtWidgets.QPushButton("Connect All")
+        self._connect_all.clicked.connect(self._on_connect_all)
+
+        layout.addRow("", self._connect_all)
         self.setLayout(layout)
 
     def _normalize_input(self, name: str) -> None:
@@ -106,25 +110,25 @@ class ConnectionWidget(QtWidgets.QWidget):
 
     # --- Public API ------------------------------------------------------
 
-    def apply_presets(self, presets: dict[str, InstrumentPreset]) -> None:
+    def apply_presets(self, presets: dict[str, Any]) -> None:
         for name, preset in presets.items():
             if name not in self._edits:
                 continue
 
             edit = self._edits[name]
 
-            if preset.address and not edit.text():
-                edit.setText(preset.address)
+            if preset["address"] and not edit.text():
+                edit.setText(preset["address"])
                 log.debug(
                     "Load %s preset address (%s)",
-                    name, preset.address
+                    name, preset["address"]
                 )
 
-            if preset.address_type:
-                edit.setToolTip(preset.address_type)
+            if preset["address_type"]:
+                edit.setToolTip(preset["address_type"])
                 log.debug(
                     "Load %s preset address type (%s)",
-                    name, preset.address_type
+                    name, preset["address_type"]
                 )
 
     # ------------------------------------------------------------------
@@ -145,6 +149,17 @@ class ConnectionWidget(QtWidgets.QWidget):
         else:
             log.info("Disconnect requested: %s", name)
             self.disconnect_requested.emit(name)
+
+    def _on_connect_all(self) -> None:
+        log.info("Connect all requested")
+        for name in self._names:
+            if self._connected[name]:
+                continue
+
+            if not self._buttons[name].isEnabled():
+                continue
+
+            self._on_button_clicked(name)
 
     # ------------------------------------------------------------------
     # Controller -> UI state updates
@@ -185,3 +200,8 @@ class ConnectionWidget(QtWidgets.QWidget):
                 connected = self._connected[name]
                 button.setEnabled(True)
                 edit.setEnabled(not connected)
+
+        if not enabled:
+            self._connect_all.setEnabled(False)
+        else:
+            self._connect_all.setEnabled(True)
