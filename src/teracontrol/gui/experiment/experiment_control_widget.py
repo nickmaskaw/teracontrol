@@ -50,6 +50,7 @@ class ExperimentControlWidget(QtWidgets.QWidget):
         self._comment = QtWidgets.QPlainTextEdit()
 
         # --- Controls ---
+        self._step_progress = QtWidgets.QProgressBar()
         self._run = QtWidgets.QPushButton("Run")
         self._pause = QtWidgets.QPushButton("Pause")
         self._abort = QtWidgets.QPushButton("Abort")
@@ -98,12 +99,15 @@ class ExperimentControlWidget(QtWidgets.QWidget):
 
     def _build_bottom_widget(self) -> QtWidgets.QWidget:
         w = QtWidgets.QWidget()
-        layout = QtWidgets.QHBoxLayout(w)
-        layout.addWidget(self._run)
-        layout.addWidget(self._pause)
-        layout.addWidget(self._abort)
-        layout.addStretch(1)
-        layout.addWidget(self._progress)
+        layout = QtWidgets.QVBoxLayout(w)
+        layout.addWidget(self._step_progress)
+        sub_layout = QtWidgets.QHBoxLayout()
+        sub_layout.addWidget(self._run)
+        sub_layout.addWidget(self._pause)
+        sub_layout.addWidget(self._abort)
+        sub_layout.addStretch(1)
+        sub_layout.addWidget(self._progress)
+        layout.addLayout(sub_layout)
         return w
 
     def _setup_layout(self) -> None:
@@ -156,8 +160,6 @@ class ExperimentControlWidget(QtWidgets.QWidget):
     # ------------------------------------------------------------------
 
     def set_state(self, status: ExperimentStatus) -> None:
-        if status is ExperimentStatus.RUNNING:
-            self.set_progress(0, 0)
         idle = status in (ExperimentStatus.IDLE, ExperimentStatus.ERROR)
         paused = status is ExperimentStatus.PAUSED
 
@@ -174,6 +176,11 @@ class ExperimentControlWidget(QtWidgets.QWidget):
     def set_progress(self, current: int, total: int) -> None:
         self._progress.setMaximum(total)
         self._progress.setValue(current)
+
+    def set_step_progress(self, current: int, total: int, message: str) -> None:
+        self._step_progress.setMaximum(total)
+        self._step_progress.setValue(current)
+        self._step_progress.setFormat(message)
 
     def load_presets(self, presets: dict[str, Any]) -> None:
         try:

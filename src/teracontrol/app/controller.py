@@ -45,6 +45,7 @@ class AppController(QtCore.QObject):
     experiment_finished = QtCore.Signal()
     sweep_created = QtCore.Signal(int)
     step_finished = QtCore.Signal(int, int)
+    step_progress = QtCore.Signal(int, int, str)
     
     def __init__(self, context: AppContext):
         super().__init__()
@@ -230,7 +231,7 @@ class AppController(QtCore.QObject):
 
         self.sweep_created.emit(self._sweep.npoints())
 
-        self._runner = SweepRunner(self._sweep, self._capture.capture)
+        self._runner = SweepRunner(self._sweep, self._capture)
         self._worker = ExperimentWorker(self._runner)
 
         self._writer = HDF5RunWriter(
@@ -251,6 +252,7 @@ class AppController(QtCore.QObject):
         self._thread.started.connect(self._worker.run)
             
         signals = self._worker.signals
+        signals.step_progress.connect(self._on_step_progress)
         signals.data_ready.connect(self._on_data_ready)
         signals.data_ready.connect(
             lambda atom, _: self._writer.write(atom.index, atom)
@@ -314,3 +316,6 @@ class AppController(QtCore.QObject):
 
     def _on_step_finished(self, index: int, total: int) -> None:
         self.step_finished.emit(index, total)
+
+    def _on_step_progress(self, current: int, total: int, message: str) -> None:
+        self.step_progress.emit(current, total, message)

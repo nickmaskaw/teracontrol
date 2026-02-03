@@ -95,6 +95,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _wire_signals(self) -> None:
 
         # --- Controller -> GUI ---
+        self._controller.step_progress.connect(self._on_step_progress)
         self._controller.data_ready.connect(self._on_new_data)
         self._controller.sweep_created.connect(self._on_sweep_created)
         self._controller.step_finished.connect(self._on_step_finished)
@@ -171,3 +172,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.widgets["experiment"].load_presets(
             self._controller.presets()["axes"][axis_name]
         )
+
+    def _on_step_progress(self, current: int, total: int, message: str) -> None:
+        self.widgets["experiment"].set_step_progress(current, total, message)

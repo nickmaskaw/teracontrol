@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import time
-from typing import Callable
+from pathlib import Path
 
-from teracontrol.core.data import DataAtom
 from .sweep_config import SweepConfig
+from teracontrol.engines.capture_engine import CaptureEngine
 
 
 class SweepRunner:
@@ -15,10 +14,11 @@ class SweepRunner:
     def __init__(
         self,
         sweep: SweepConfig,
-        capture: Callable[[dict], DataAtom],
+        capture_engine: CaptureEngine,
+        safe_dump_path: Path | None = None,
     ):
         self.sweep = sweep
-        self.capture = capture
+        self.capture = capture_engine
         self._abort = False
 
     def abort(self) -> None:

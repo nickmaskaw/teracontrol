@@ -330,6 +330,12 @@ class TeraflashTHzSystem(BaseHAL):
     def set_average_points(self, value: int) -> None:
         self._set("RC-AVERAGE", value, sep="%d")
 
+    def set_file_path(self, path: str) -> None:
+        self._set("RC-FILEPATH", path, sep="%s")
+
+    def dump_save_trace(self) -> None:
+        self._set("RC-SAVE", "WO-S")
+
     # ------------------------------------------------------------------
     # Read commands
     # ------------------------------------------------------------------
