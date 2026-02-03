@@ -241,7 +241,7 @@ class AppController(QtCore.QObject):
         self._writer = HDF5RunWriter(
             self._context.data_dir /
             f"{datetime.now():%Y-%m-%d_%H-%M-%S}_"
-            f"{meta.operator}_{meta.sample}_"
+            f"{meta["operator"]}_{meta["sample"]}_"
             f"{self._axis.name}.h5"
         )
         self._writer.open(

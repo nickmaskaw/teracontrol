@@ -232,7 +232,7 @@ class TeraflashTHzSystem(BaseHAL):
         log.debug("Parsing CSV trace payload")
 
         # Split lines (CRLF as per documentation)
-        lines = csv_text.strip().split("\r\n")
+        lines = csv_text.strip().splitlines()#.split("\r\n")
 
         # Parse header
         headers = [h.strip() for h in lines.pop(0).split(",")]
@@ -240,7 +240,7 @@ class TeraflashTHzSystem(BaseHAL):
         log.debug("Parsed headers: %s", headers)
 
         # Parse numeric data
-        data = [line.split(",") for line in lines[1:]]
+        data = [line.split(",") for line in lines]
         arr = np.array(data, dtype=float)
 
         if arr.shape[1] != len(headers):

@@ -136,7 +136,7 @@ class ExperimentWorker(QtCore.QObject):
                         self.runner.abort()
                         self.signals.aborted.emit()
                         return
-                self.signals.step_progress.emit(1, 1, "waiting...")
+                self.signals.step_progress.emit(1, 1, "")
 
                 meta = axis.describe(value)
                 self.signals.step_started.emit(meta)
@@ -150,7 +150,7 @@ class ExperimentWorker(QtCore.QObject):
                     self.runner.abort()
                     self.signals.aborted.emit()
                     return
-                self.signals.step_progress.emit(1, 1, "averaging...")
+                self.signals.step_progress.emit(1, 1, "")
                 
                 # --- Capture data ---
                 atom = self.runner.capture.capture(meta, index=i)
