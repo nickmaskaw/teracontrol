@@ -1,8 +1,6 @@
 
 ```
 teracontrol
-├─ configs
-│  └─ instruments.yaml
 ├─ docs
 │  ├─ architecture.md
 │  ├─ TF_PRO-RC-Commands-UDP-v22p1.pdf
@@ -14,32 +12,32 @@ teracontrol
 ├─ src
 │  └─ teracontrol
 │     ├─ app
+│     │  ├─ context.py
 │     │  ├─ controller.py
 │     │  ├─ main.py
 │     │  └─ __init__.py
 │     ├─ cli
 │     │  └─ temp_logger.py
-│     ├─ config
-│     │  ├─ loader.py
-│     │  └─ __init__.py
 │     ├─ core
 │     │  ├─ experiment
 │     │  │  ├─ catalog.py
 │     │  │  ├─ qt_experiment.py
 │     │  │  ├─ runner.py
+│     │  │  ├─ status.py
 │     │  │  ├─ sweep_axis.py
 │     │  │  ├─ sweep_config.py
 │     │  │  └─ __init__.py
 │     │  ├─ instruments
 │     │  │  ├─ catalog.py
-│     │  │  ├─ presets.py
 │     │  │  ├─ registry.py
 │     │  │  └─ __init__.py
 │     │  └─ __init__.py
 │     ├─ engines
 │     │  ├─ capture_engine.py
 │     │  ├─ connection_engine.py
+│     │  ├─ hdf5_writer.py
 │     │  ├─ query_engine.py
+│     │  ├─ temperature_engine.py
 │     │  └─ __init__.py
 │     ├─ gui
 │     │  ├─ experiment
