@@ -334,7 +334,8 @@ class TeraflashTHzSystem(BaseHAL):
         self._set("RC-FILEPATH", path, sep="%s")
 
     def dump_save_trace(self) -> None:
-        self._set("RC-SAVE", "WO-S")
+        self._expect_ok(self._send_command("RC-SAVE WO-S"))
+        log.info("Saved trace")
 
     # ------------------------------------------------------------------
     # Read commands

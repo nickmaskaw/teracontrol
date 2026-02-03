@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from datetime import datetime
 from PySide6 import QtCore
 
 from teracontrol.core.data import DataAtom
@@ -154,6 +155,15 @@ class ExperimentWorker(QtCore.QObject):
                 # --- Capture data ---
                 atom = self.runner.capture.capture(meta, index=i)
                 self.signals.data_ready.emit(atom, meta)
+
+                if self.runner.safe_dump_dir is not None:
+                    now = f"{datetime.now():%Y-%m-%d_%H-%M-%S}"
+                    path = (
+                        self.runner.safe_dump_dir / 
+                        f"{now}_{axis.name}_{i}_of_{npoints}"
+                    )
+                    print(path)
+                    self.runner.capture.dump_save(path)
 
                 self.runner.capture.end_averaging()
                 self.signals.step_finished.emit(i, npoints)

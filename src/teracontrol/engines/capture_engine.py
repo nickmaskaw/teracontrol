@@ -1,4 +1,5 @@
 from typing import Any
+from pathlib import Path
 
 from teracontrol.core.instruments import (
     InstrumentRegistry, InstrumentCatalog
@@ -22,6 +23,11 @@ class CaptureEngine:
         read_status = lambda: self._read_status(meta)
         read_data = lambda: self._read_data()
         return capture_data(read_status, read_data, index=index)
+    
+    def dump_save(self, path: Path) -> None:
+        thz = self._get_thz()
+        thz.set_file_path(str(path))
+        thz.dump_save_trace()
     
     # --- Averaging lifecycle --------------------------------------------
 

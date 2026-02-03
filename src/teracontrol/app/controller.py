@@ -231,12 +231,18 @@ class AppController(QtCore.QObject):
 
         self.sweep_created.emit(self._sweep.npoints())
 
-        self._runner = SweepRunner(self._sweep, self._capture)
+        self._runner = SweepRunner(
+            sweep=self._sweep,
+            capture_engine=self._capture,
+            safe_dump_dir=self._context.data_dir / "safe_dumps",
+        )
         self._worker = ExperimentWorker(self._runner)
 
         self._writer = HDF5RunWriter(
             self._context.data_dir /
-            f"{datetime.now():%Y-%m-%d_%H-%M-%S}_{self._axis.name}.h5"
+            f"{datetime.now():%Y-%m-%d_%H-%M-%S}_"
+            f"{meta.operator}_{meta.sample}_"
+            f"{self._axis.name}.h5"
         )
         self._writer.open(
             sweep_meta=self._sweep.describe(),

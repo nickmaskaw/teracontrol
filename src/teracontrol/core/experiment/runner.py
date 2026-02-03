@@ -15,11 +15,14 @@ class SweepRunner:
         self,
         sweep: SweepConfig,
         capture_engine: CaptureEngine,
-        safe_dump_path: Path | None = None,
+        safe_dump_dir: Path | None = None,
     ):
         self.sweep = sweep
         self.capture = capture_engine
         self._abort = False
+        self.safe_dump_dir = safe_dump_dir
+        if safe_dump_dir is not None:
+            safe_dump_dir.mkdir(parents=True, exist_ok=True)
 
     def abort(self) -> None:
         """
