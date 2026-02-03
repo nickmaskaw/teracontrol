@@ -30,6 +30,7 @@ from teracontrol.engines import (
     QueryEngine,
     CaptureEngine,
     HDF5RunWriter,
+    TemperatureEngine,
 )
 from teracontrol.config import load_config, save_config
 from teracontrol.utils.logging import get_logger
@@ -46,6 +47,7 @@ class AppController(QtCore.QObject):
     sweep_created = QtCore.Signal(int)
     step_finished = QtCore.Signal(int, int)
     step_progress = QtCore.Signal(int, int, str)
+    run_progress = QtCore.Signal(int, int)
     
     def __init__(self, context: AppContext):
         super().__init__()
@@ -66,6 +68,11 @@ class AppController(QtCore.QObject):
         self._connection = ConnectionEngine(self._registry)
         self._query = QueryEngine(self._registry)
         self._capture = CaptureEngine(self._registry)
+        
+        self._temperature = TemperatureEngine(
+            instrument=self._registry.get(InstrumentCatalog.TEMP),
+            device="Probe_DB8"
+        )
 
         self._reset_experiment_state()
         log.info("=== AppController initialized ===")
@@ -88,6 +95,11 @@ class AppController(QtCore.QObject):
 
         if "axes" not in self._presets:
             self._presets["axes"] = AXIS_DEFAULTS
+        
+        for axis in AXIS_CATALOG:
+            if axis not in self._presets["axes"]:
+                self._presets["axes"][axis] = AXIS_DEFAULTS[axis]
+
 
     def _reset_experiment_state(self) -> None:
         self._axis: SweepAxis | None = None
@@ -219,7 +231,11 @@ class AppController(QtCore.QObject):
         meta = config["meta"]
 
         axis_cls = AXIS_CATALOG[axis_name]
-        self._axis = axis_cls()
+        
+        if axis_name == "temperature":
+            self._axis = axis_cls(engine=self._temperature)
+        else:
+            self._axis = axis_cls()
 
         self._sweep = SweepConfig(
             axis=self._axis,
@@ -258,6 +274,7 @@ class AppController(QtCore.QObject):
         self._thread.started.connect(self._worker.run)
             
         signals = self._worker.signals
+        signals.run_progress.connect(self._on_run_progress)
         signals.step_progress.connect(self._on_step_progress)
         signals.data_ready.connect(self._on_data_ready)
         signals.data_ready.connect(
@@ -325,3 +342,6 @@ class AppController(QtCore.QObject):
 
     def _on_step_progress(self, current: int, total: int, message: str) -> None:
         self.step_progress.emit(current, total, message)
+
+    def _on_run_progress(self, current: int, total: int) -> None:
+        self.run_progress.emit(current, total)

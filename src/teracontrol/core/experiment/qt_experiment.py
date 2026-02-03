@@ -20,6 +20,7 @@ class ExperimentSignals(QtCore.QObject):
     started = QtCore.Signal(dict)  # sweep metadata
     aborted = QtCore.Signal()
     finished = QtCore.Signal()
+    run_progress = QtCore.Signal(int, int)  # current, total
 
     # step lifecycle
     step_started = QtCore.Signal(dict)            # axis.describe(value)
@@ -111,6 +112,7 @@ class ExperimentWorker(QtCore.QObject):
         npoints = sweep.npoints()
 
         self.signals.started.emit(sweep.describe())
+        self.signals.run_progress.emit(0, npoints)
 
         try:
             for i, value in enumerate(sweep.points(), start=1):
@@ -166,6 +168,7 @@ class ExperimentWorker(QtCore.QObject):
                     self.runner.capture.dump_save(path)
 
                 self.runner.capture.end_averaging()
+                self.signals.run_progress.emit(i, npoints)
                 self.signals.step_finished.emit(i, npoints)
 
         finally:

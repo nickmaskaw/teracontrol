@@ -3,6 +3,9 @@ import warnings
 from typing import Optional, Any, Callable
 
 from teracontrol.hal.base import BaseHAL
+from teracontrol.utils.logging import get_logger
+
+log = get_logger(__name__)
 
 
 class GenericMercuryController(BaseHAL):
@@ -96,6 +99,27 @@ class GenericMercuryController(BaseHAL):
         response = self._send_command(f"READ:{cmd}")
         return response
     
+    def _expect_valid(self, response: str) -> None:
+        """Raise an exception if the response is not VALID."""
+        if not response.endswith("VALID"):
+            log.error("Instrument returned error response: %s", response)
+            raise RuntimeError(f"Invalid response: {response}")
+        
+    def _set(self, cmd: str, value: Any) -> None:
+        full_cmd = f"SET:{cmd}:{value}"
+        log.debug("Setting parameter: %s", full_cmd)
+
+        try:
+            self._expect_valid(self._send_command(full_cmd))
+            log.info("Set successful: %s", cmd)
+
+        except Exception as e:
+            log.error(
+                "Failed to set parameter %s to %s",
+                cmd, value, exc_info=True
+            )
+            raise RuntimeError(f"Failed to set {cmd} to {value}") from e
+    
     def _read_device(
         self,
         device_name: str,
@@ -124,6 +148,20 @@ class GenericMercuryController(BaseHAL):
                 RuntimeWarning,
             )
             return value
+        
+    def _set_device(
+        self,
+        device_name: str,
+        cmd: str,
+        value: Any,
+        expected_kind: Optional[str] = None,
+    ) -> None:
+        device_id = self._get_device_id(device_name)
+
+        if expected_kind is not None:
+            self._check_device_kind(device_id, expected_kind)
+
+        self._set(f"DEV:{device_id}:{cmd}", value)
         
     def _check_device_kind(self, device_id: str, expected_kind: str) -> None:
         actual_kind = device_id.split(":")[1]
@@ -225,7 +263,7 @@ class GenericMercuryController(BaseHAL):
         """Return the temperature of a device in Kelvin."""
         return self._read_device(
             device_name, "SIG:TEMP", astype=float, unit="K", expected_kind="TEMP"
-        )  
+        )
         
     def read_power(self, device_name: str) -> float:
         """Return the heater power of a device in Watts."""
@@ -286,3 +324,35 @@ class GenericMercuryController(BaseHAL):
     
     def export_nvalves(self) -> dict[str, float]:
         return self._collect(self.read_nvalve, "AUX")
+    
+    # ==========================================================================
+    # Temperature loop control
+    # ==========================================================================
+
+    def set_temperature_setpoint(self, device_name: str, value: float) -> None:
+        """ Set the temperature set point of a device in Kelvin. """
+        if value > 300 or value < 0:
+            raise ValueError("Temperature set point must be between 0 and 300 K")
+        
+        self._set_device(device_name, "LOOP:TSET", value, expected_kind="TEMP")
+
+    def read_temperature_setpoint(self, device_name: str) -> float:
+        """ Return the temperature set point of a device in Kelvin. """
+        return self._read_device(
+            device_name, "LOOP:TSET", astype=float, unit="K", expected_kind="TEMP"
+        )
+
+    def enable_temperature_control(self, device_name: str) -> None:
+        """ Enable temperature auto control for a device. """
+        self._set_device(device_name, "LOOP:ENAB", "ON", expected_kind="TEMP")
+
+    def disable_temperature_control(self, device_name: str) -> None:
+        """ Disable temperature auto control for a device. """
+        self.set_temperature_setpoint(device_name, 0)
+        self._set_device(device_name, "LOOP:ENAB", "OFF", expected_kind="TEMP")
+
+    def read_temperature_control_status(self, device_name: str) -> str:
+        """ Return the temperature control status of a device. """
+        return self._read_device(
+            device_name, "LOOP:ENAB", astype=str, expected_kind="TEMP"
+        )
