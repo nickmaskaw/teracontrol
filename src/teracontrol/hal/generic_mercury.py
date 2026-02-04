@@ -174,9 +174,9 @@ class GenericMercuryController(BaseHAL):
     def _get_device_id(self, device_name: str) -> str:
         return self.devices[device_name]
     
-    # ------------------------------------------------------------------
+    # ==========================================================================
     # Debug tools
-    # ------------------------------------------------------------------
+    # ==========================================================================
 
     def query(self, command: str) -> str:
         response = self._send_command(command)
@@ -184,60 +184,9 @@ class GenericMercuryController(BaseHAL):
         print(f"Response: {response}")
         return response
     
-    # ------------------------------------------------------------------
-    # Status
-    # ------------------------------------------------------------------
-
-    def status(self) -> dict[str, Any]:
-        """Acquire a snapshot of the instrument status."""
-
-        status: dict[str, Any] = {
-            "connected": self.is_connected(),
-        }
-
-        if self.enabled_kinds["TEMP"]:
-            status["temp.temp_K"] = self._collect(
-                self.read_temperature, "TEMP"
-            )
-        
-        if self.enabled_kinds["HTR"]:
-            status["htr.power_W"] = self._collect(
-                self.read_power, "HTR"
-            )
-        
-        if self.enabled_kinds["PRES"]:
-            status["pres.pressure_mbar"] = self._collect(
-                self.read_pressure, "PRES"
-            )
-        
-        if self.enabled_kinds["AUX"]:
-            status["aux.nvalve_percent"] = self._collect(
-                self.read_nvalve, "AUX"
-            )
-
-        if self.enabled_kinds["PSU"]:
-            status["psu.field_T"] = self._collect(
-                self.read_field, "PSU"
-            )
-            status["psu.rate_A_per_min"] = self._collect(
-                self.read_field_rate, "PSU"
-            )
-            status["psu.heater"] = self._collect(
-                self.read_magnet_heater, "PSU"
-            )
-            status["psu.status"] = self._collect(
-                self.read_magnet_status, "PSU"
-            )
-
-        return status
-    
-    def is_connected(self) -> bool:
-        """Return True if the instrument is connected."""
-        return (self.sock is not None)
-    
-    # ------------------------------------------------------------------
-    # Read commands
-    # ------------------------------------------------------------------
+    # ==========================================================================
+    # System commands
+    # ==========================================================================
 
     def idn(self) -> str:
         """Return the instrument IDN."""
@@ -257,20 +206,60 @@ class GenericMercuryController(BaseHAL):
         ]
         return dict(zip(names, ids))
     
-    # --- read devices ---    
-    
+    # ==========================================================================
+    # Temperature control
+    # ==========================================================================
+
+    # --- getters ---
+
     def read_temperature(self, device_name: str) -> float:
         """Return the temperature of a device in Kelvin."""
         return self._read_device(
             device_name, "SIG:TEMP", astype=float, unit="K", expected_kind="TEMP"
         )
-        
+    
+    def read_temperature_setpoint(self, device_name: str) -> float:
+        """ Return the temperature set point of a device in Kelvin. """
+        return self._read_device(
+            device_name, "LOOP:TSET", astype=float, unit="K", expected_kind="TEMP"
+        )
+    
     def read_power(self, device_name: str) -> float:
         """Return the heater power of a device in Watts."""
         return self._read_device(
             device_name, "SIG:POWR", astype=float, unit="W", expected_kind="HTR"
         )
     
+    def read_temperature_control_status(self, device_name: str) -> str:
+        """ Return the temperature control status of a device. """
+        return self._read_device(
+            device_name, "LOOP:ENAB", astype=str, expected_kind="TEMP"
+        )
+    
+    # --- setters ---
+
+    def set_temperature_setpoint(self, device_name: str, value: float) -> None:
+        """ Set the temperature set point of a device in Kelvin. """
+        if value > 300 or value < 0:
+            raise ValueError("Temperature set point must be between 0 and 300 K")
+        
+        self._set_device(device_name, "LOOP:TSET", value, expected_kind="TEMP")
+
+    def enable_temperature_control(self, device_name: str) -> None:
+        """ Enable temperature auto control for a device. """
+        self._set_device(device_name, "LOOP:ENAB", "ON", expected_kind="TEMP")
+
+    def disable_temperature_control(self, device_name: str) -> None:
+        """ Disable temperature auto control for a device. """
+        self.set_temperature_setpoint(device_name, 0)
+        self._set_device(device_name, "LOOP:ENAB", "OFF", expected_kind="TEMP")
+
+    # ==========================================================================
+    # Pressure controller
+    # ==========================================================================
+
+    # --- getters ---
+
     def read_pressure(self, device_name: str) -> float:
         """Return the pressure of a device in millibar."""
         return self._read_device(
@@ -283,16 +272,52 @@ class GenericMercuryController(BaseHAL):
             device_name, "SIG:PERC", astype=float, unit="%", expected_kind="AUX"
         )
     
+    # ==========================================================================
+    # Magnet controller
+    # ==========================================================================
+
+    # --- getters ---
+
+    def read_voltage(self, device_name: str) -> float:
+        """Return the voltage of a power supply in Volts."""
+        return self._read_device(
+            device_name, "SIG:VOLT", astype=float, unit="V", expected_kind="PSU"
+        )
+    
+    def read_current(self, device_name: str) -> float:
+        """Return the current of a power supply in Amperes."""
+        return self._read_device(
+            device_name, "SIG:CURR", astype=float, unit="A", expected_kind="PSU"
+        )
+
     def read_field(self, device_name: str) -> float:
         """Return the magnet field strength of a power supply in Tesla."""
         return self._read_device(
             device_name, "SIG:FLD", astype=float, unit="T", expected_kind="PSU"
         )
     
-    def read_field_rate(self, device_name: str) -> float:
+    def read_target_current(self, device_name: str) -> float:
+        """Return the target current of a power supply in Amperes."""
+        return self._read_device(
+            device_name, "SIG:CSET", astype=float, unit="A", expected_kind="PSU"
+        )
+    
+    def read_target_field(self, device_name: str) -> float:
+        """Return the target magnet field strength of a power supply in Tesla."""
+        return self._read_device(
+            device_name, "SIG:FSET", astype=float, unit="T", expected_kind="PSU"
+        )
+    
+    def read_current_rate(self, device_name: str) -> float:
         """Return the current rate of a power supply in Ampere per minute."""
         return self._read_device(
             device_name, "SIG:RCUR", astype=float, unit="A/min", expected_kind="PSU"
+        )
+    
+    def read_field_rate(self, device_name: str) -> float:
+        """Return the current rate of a power supply in Tesla per minute."""
+        return self._read_device(
+            device_name, "SIG:RFLD", astype=float, unit="T/min", expected_kind="PSU"
         )
     
     def read_magnet_heater(self, device_name: str) -> str:
@@ -306,8 +331,10 @@ class GenericMercuryController(BaseHAL):
         return self._read_device(
             device_name, "ACTN", astype=str, expected_kind="PSU"
         )
-    
-    # --- get dictionaries ---
+
+    # ==========================================================================
+    # Dictionary helpers
+    # ==========================================================================
 
     def _collect(self, fn: Callable[[str], Any], kind: str) -> dict[str, Any]:
         return {
@@ -324,35 +351,56 @@ class GenericMercuryController(BaseHAL):
     
     def export_nvalves(self) -> dict[str, float]:
         return self._collect(self.read_nvalve, "AUX")
+
+    # ==========================================================================
+    # Status
+    # ==========================================================================
     
-    # ==========================================================================
-    # Temperature loop control
-    # ==========================================================================
+    def is_connected(self) -> bool:
+        """Return True if the instrument is connected."""
+        return (self.sock is not None)
+    
+    def status(self) -> dict[str, Any]:
+        status: dict[str, Any] = {
+            "connected": self.is_connected(),
+        }
 
-    def set_temperature_setpoint(self, device_name: str, value: float) -> None:
-        """ Set the temperature set point of a device in Kelvin. """
-        if value > 300 or value < 0:
-            raise ValueError("Temperature set point must be between 0 and 300 K")
-        
-        self._set_device(device_name, "LOOP:TSET", value, expected_kind="TEMP")
+        for enabled_kind in self.enabled_kinds:
+            status[enabled_kind] = {}
 
-    def read_temperature_setpoint(self, device_name: str) -> float:
-        """ Return the temperature set point of a device in Kelvin. """
-        return self._read_device(
-            device_name, "LOOP:TSET", astype=float, unit="K", expected_kind="TEMP"
-        )
+        for name in self.devices:
+            kind = self.devices[name].split(":")[1]
+            if kind not in self.enabled_kinds:
+                continue
 
-    def enable_temperature_control(self, device_name: str) -> None:
-        """ Enable temperature auto control for a device. """
-        self._set_device(device_name, "LOOP:ENAB", "ON", expected_kind="TEMP")
+            if name in self.ignored_devices[kind]:
+                continue
 
-    def disable_temperature_control(self, device_name: str) -> None:
-        """ Disable temperature auto control for a device. """
-        self.set_temperature_setpoint(device_name, 0)
-        self._set_device(device_name, "LOOP:ENAB", "OFF", expected_kind="TEMP")
+            status[kind][name] = {}
 
-    def read_temperature_control_status(self, device_name: str) -> str:
-        """ Return the temperature control status of a device. """
-        return self._read_device(
-            device_name, "LOOP:ENAB", astype=str, expected_kind="TEMP"
-        )
+            if kind == "TEMP":
+                status[kind][name]["reading_K"] = self.read_temperature(name)
+                status[kind][name]["setpoint_K"] = self.read_temperature_setpoint(name)
+                status[kind][name]["auto"] = self.read_temperature_control_status(name)
+            
+            if kind == "HTR":
+                status[kind][name]["power_W"] = self.read_power(name)
+
+            if kind == "PRES":
+                status[kind][name]["reading_mbar"] = self.read_pressure(name)
+
+            if kind == "AUX":
+                status[kind][name]["nvalve_percent"] = self.read_nvalve(name)
+
+            if kind == "PSU":
+                status[kind][name]["voltage_V"] = self.read_voltage(name)
+                status[kind][name]["current_A"] = self.read_current(name)
+                status[kind][name]["field_T"] = self.read_field(name)
+                status[kind][name]["current_target_A"] = self.read_target_current(name)
+                status[kind][name]["field_target_T"] = self.read_target_field(name)
+                status[kind][name]["current_rate_A_per_min"] = self.read_current_rate(name)
+                status[kind][name]["field_rate_T_per_min"] = self.read_field_rate(name)
+                status[kind][name]["heater"] = self.read_magnet_heater(name)
+                status[kind][name]["magnet"] = self.read_magnet_status(name)
+
+        return status

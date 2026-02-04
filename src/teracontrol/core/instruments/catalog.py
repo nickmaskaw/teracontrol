@@ -7,9 +7,9 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class InstrumentCatalog:
-    THZ = "THz System"
-    TEMP = "Temperature Controller"
-    FIELD = "Field Controller"
+    THZ = "TeraFlash"
+    TEMP = "ITC"
+    FIELD = "IPS"
 
 # =============================================================================
 # Instrument Defaults

@@ -33,10 +33,17 @@ class TrendsWidget(QtWidgets.QWidget):
         self.setLayout(layout)
 
     def append_curve(self, curve) -> None:
-        i = int(np.argmax(np.abs(curve.waveform.signal)))
+        imax = np.argmax(curve.waveform.signal)
+        imin = np.argmin(curve.waveform.signal)
+        i = int((imax + imin) / 2)
+        amp = float(
+            curve.waveform.signal[imax] - curve.waveform.signal[imin]
+        )
+        pos = float(curve.waveform.time[i])
+
         self._x.append(len(self._x))
-        self._amp.append(float(curve.waveform.signal[i]))
-        self._pos.append(float(curve.waveform.time[i]))
+        self._amp.append(amp)
+        self._pos.append(pos)
 
     def toggle_visibility(self, visible: list[bool]) -> None:
         x = [i+1 for i, v in enumerate(visible) if v]
