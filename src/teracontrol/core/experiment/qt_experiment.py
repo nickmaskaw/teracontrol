@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from datetime import datetime
 from PySide6 import QtCore
@@ -166,6 +167,16 @@ class ExperimentWorker(QtCore.QObject):
                     )
                     print(path)
                     self.runner.capture.dump_save(path)
+                    meta_path = path.with_suffix(".json")
+                    payload = {
+                        "timestamp": atom.timestamp,
+                        "status": atom.status,
+                        "index": atom.index,
+                    }
+                    meta_path.write_text(
+                        json.dumps(payload, indent=4, sort_keys=True),
+                        encoding="utf-8",
+                    )
 
                 self.runner.capture.end_averaging()
                 self.signals.run_progress.emit(i, npoints)
