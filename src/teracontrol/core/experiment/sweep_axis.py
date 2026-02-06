@@ -22,6 +22,8 @@ class SweepAxis(ABC):
     unit: str = ""
     decimals: int = 3
     blocking: bool = False
+    minimum = 0
+    maximum = 1000
 
     def __init__(self):
         self._current: Optional[float] = None
@@ -82,6 +84,8 @@ class CountAxis(SweepAxis):
     unit = "#"
     decimals = 0
     blocking = False
+    minimum = 1
+    maximum = 1000
 
     def goto(self, value: float) -> None:
         # Count has no physical motion; just update state
@@ -93,6 +97,8 @@ class TemperatureAxis(SweepAxis):
     unit = "K"
     decimals = 1
     blocking = False
+    minimum = 0.0
+    maximum = 300.0
 
     def __init__(self, engine: TemperatureEngine):
         super().__init__()
@@ -133,3 +139,13 @@ class TemperatureAxis(SweepAxis):
         """
         self._engine.end_temperature_control()
 
+
+class FieldAxis(SweepAxis):
+    name = "field"
+    unit = "T"
+    decimals = 3
+    blocking = True
+    minimum = -7.0
+    maximum = 7.0
+
+    ...

@@ -218,10 +218,13 @@ class ExperimentControlWidget(QtWidgets.QWidget):
         axis_cls = self._axis_catalogue[axis_name]
         decimals = axis_cls.decimals
         unit = axis_cls.unit
+        minimum = axis_cls.minimum
+        maximum = axis_cls.maximum
 
         for spinbox in (self._start, self._stop, self._step):
             spinbox.setDecimals(decimals)
             spinbox.setSuffix(f" {unit}")
+            spinbox.setRange(minimum, maximum)
         
         self.axis_selected.emit(axis_name)
 
