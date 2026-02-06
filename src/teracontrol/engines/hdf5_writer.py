@@ -227,10 +227,10 @@ class HDF5RunWriter:
         Finalize and close the HDF5 file.
         """
         if self._run is not None:
-            write_attr(self._run.attrs, "status", status)
+            write_attr(self._run.attrs, "run.status", status)
             write_attr(
                 self._run.attrs,
-                "finished_at",
+                "run.finished_at",
                 datetime.now().astimezone().isoformat()
             )
 
