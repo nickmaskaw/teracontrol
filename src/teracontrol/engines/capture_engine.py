@@ -70,7 +70,7 @@ class CaptureEngine:
         
 
     def _read_status(self, meta: dict[str, Any]) -> dict[str, Any]:
-        status = {"Metadata": meta}
+        status = {"sweep": meta}
         for name in self._registry.names():
             status[name] = self._registry.describe(name)
         return status

@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 import time
 from datetime import datetime
+from typing import Any
 from PySide6 import QtCore
 
 from teracontrol.core.data import DataAtom
 from .runner import SweepRunner
+
 
 # =============================================================================
 # Signals
@@ -47,9 +49,29 @@ class ExperimentWorker(QtCore.QObject):
         self._abort = False
         self._paused = False
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
+    # --------------------------------------------------------------------------
+    # Abort / pause handling
+    # --------------------------------------------------------------------------
+
+    def _check_abort(self) -> bool:
+        if self._abort:
+            self.runner.abort()
+            self.signals.aborted.emit()
+            return True
+        return False
+    
+    def _wait_if_paused(self) -> bool:
+        while self._paused:
+            if self._abort:
+                self.runner.abort()
+                self.signals.aborted.emit()
+                return False
+            QtCore.QThread.msleep(self._SLEEP_QUANTUM_MS)
+        return True
+    
+    # --------------------------------------------------------------------------
+    # Comparative waiting helpers
+    # --------------------------------------------------------------------------
 
     def _controlled_sleep(self, total_ms: int) -> bool:
         """
@@ -99,9 +121,73 @@ class ExperimentWorker(QtCore.QObject):
         
         return True
     
-    # ------------------------------------------------------------------
+    # --------------------------------------------------------------------------
+    # Step execution
+    # --------------------------------------------------------------------------
+
+    def _position_axis(self, axis, value, dwell_s: float) -> bool:
+        axis.goto(value)
+
+        if dwell_s > 0:
+            if not self._controlled_sleep(int(dwell_s * 1000)):
+                return False
+            
+        self.signals.step_progress.emit(1, 1, "")
+        return True
+    
+    def _run_averaging(self) -> bool:
+        self.runner.capture.begin_averaging()
+        timeout_s = self.runner.capture.estimate_timeout_s()
+
+        if not self._wait_for_averaging(timeout_s):
+            self.runner.capture.end_averaging()
+            return False
+        
+        self.signals.step_progress.emit(1, 1, "")
+        return True
+    
+    def _capture_data(
+        self,
+        meta: dict[str, Any],
+        index: int,
+    ) -> DataAtom:
+        atom = self.runner.capture.capture(meta, index=index)
+        self.signals.data_ready.emit(atom, meta)
+        return atom
+    
+    def _safe_dump(
+        self,
+        atom: DataAtom,
+        axis_name: str,
+        index: int,
+        npoints: int,
+    ) -> None:
+        if self.runner.safe_dump_dir is None:
+            return
+        
+        now = f"{datetime.now():%Y-%m-%d_%H-%M-%S}"
+        path = (
+            self.runner.safe_dump_dir / 
+            f"{now}_{axis_name}_{index}_of_{npoints}"
+        )
+
+        self.runner.capture.dump_save(path)
+
+        meta_path = path.with_suffix(".json")
+        payload = {
+            "timestamp": atom.timestamp,
+            "status": atom.status,
+            "index": atom.index,
+        }
+
+        meta_path.write_text(
+            json.dumps(payload, indent=4, sort_keys=True),
+            encoding="utf-8",
+        )
+
+    # --------------------------------------------------------------------------
     # Qt entry points
-    # ------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
     @QtCore.Slot()
     def run(self):
@@ -117,68 +203,37 @@ class ExperimentWorker(QtCore.QObject):
 
         try:
             for i, value in enumerate(sweep.points(), start=1):
+
+                if self._check_abort():
+                    return
                 
-                if self._abort:
+                if not self._wait_if_paused():
+                    return
+                
+                # --- Axis positioning and dwell ---
+                if not self._position_axis(axis, value, sweep.dwell_s):
                     self.runner.abort()
                     self.signals.aborted.emit()
                     return
-                
-                while self._paused:
-                    if self._abort:
-                        self.runner.abort()
-                        self.signals.aborted.emit()
-                        return
-                    QtCore.QThread.msleep(self._SLEEP_QUANTUM_MS)
-
-                # --- Move axis ---
-                axis.goto(value)
-
-                # --- Dwell (cooperative) ---
-                if sweep.dwell_s > 0:
-                    if not self._controlled_sleep(int(sweep.dwell_s * 1000)):
-                        self.runner.abort()
-                        self.signals.aborted.emit()
-                        return
-                self.signals.step_progress.emit(1, 1, "")
 
                 meta = axis.describe(value)
                 self.signals.step_started.emit(meta)
 
                 # --- Firmware averaging ---
-                self.runner.capture.begin_averaging()
-                timeout_s = self.runner.capture.estimate_timeout_s()
-
-                if not self._wait_for_averaging(timeout_s):
-                    self.runner.capture.end_averaging()
+                if not self._run_averaging():
                     self.runner.abort()
                     self.signals.aborted.emit()
                     return
-                self.signals.step_progress.emit(1, 1, "")
                 
-                # --- Capture data ---
-                atom = self.runner.capture.capture(meta, index=i)
-                self.signals.data_ready.emit(atom, meta)
+                # --- Capture ---
+                atom = self._capture_data(meta, i)
 
-                if self.runner.safe_dump_dir is not None:
-                    now = f"{datetime.now():%Y-%m-%d_%H-%M-%S}"
-                    path = (
-                        self.runner.safe_dump_dir / 
-                        f"{now}_{axis.name}_{i}_of_{npoints}"
-                    )
-                    print(path)
-                    self.runner.capture.dump_save(path)
-                    meta_path = path.with_suffix(".json")
-                    payload = {
-                        "timestamp": atom.timestamp,
-                        "status": atom.status,
-                        "index": atom.index,
-                    }
-                    meta_path.write_text(
-                        json.dumps(payload, indent=4, sort_keys=True),
-                        encoding="utf-8",
-                    )
+                # --- Optional safe dump ---
+                self._safe_dump(atom, axis.name, i, npoints)
 
                 self.runner.capture.end_averaging()
+
+                # --- Progress ---
                 self.signals.run_progress.emit(i, npoints)
                 self.signals.step_finished.emit(i, npoints)
 
