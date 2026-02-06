@@ -140,7 +140,8 @@ class MonitorWidget(QtWidgets.QWidget):
         if total <= 1:
             return 0.0
         
-        return index / max(total - 1, 1)
+        # .84 prevents ending in red back again
+        return ( index / max(total - 1, 1) ) * .84
     
     def _recompute_ffts(self) -> None:
         for curve in self._curves:
