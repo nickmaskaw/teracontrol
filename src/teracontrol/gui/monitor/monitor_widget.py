@@ -120,6 +120,7 @@ class MonitorWidget(QtWidgets.QWidget):
         self.signal_widget.clear()
         self.trends_widget.clear()
         self.curve_list_widget.clear()
+        self._fft_tmax = None  # reset (conform to cursor behavior)
 
     # ------------------------------------------------------------------
     # Internal helpers

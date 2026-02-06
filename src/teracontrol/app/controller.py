@@ -258,7 +258,8 @@ class AppController(QtCore.QObject):
             self._context.data_dir /
             f"{datetime.now():%Y-%m-%d_%H-%M-%S}_"
             f"{meta["operator"]}_{meta["sample"]}_"
-            f"{self._axis.name}.h5"
+            f"{self._axis.name}_"
+            f"{meta['label']}.h5"
         )
         self._writer.open(
             sweep_meta=self._sweep.describe(),

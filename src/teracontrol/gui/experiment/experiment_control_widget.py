@@ -47,6 +47,7 @@ class ExperimentControlWidget(QtWidgets.QWidget):
         # --- Metadata ---
         self._operator = QtWidgets.QLineEdit()
         self._sample = QtWidgets.QLineEdit()
+        self._label = QtWidgets.QLineEdit()
         self._comment = QtWidgets.QPlainTextEdit()
 
         # --- Controls ---
@@ -94,6 +95,7 @@ class ExperimentControlWidget(QtWidgets.QWidget):
         layout = QtWidgets.QFormLayout(box)
         layout.addRow("Operator", self._operator)
         layout.addRow("Sample", self._sample)
+        layout.addRow("Label", self._label)
         layout.addRow("Comment", self._comment)
         return box
 
@@ -129,6 +131,22 @@ class ExperimentControlWidget(QtWidgets.QWidget):
 
         self._dwell.setRange(0, 1000)
         self._dwell.setDecimals(1)
+
+        # --- Tooltips ---
+        self._operator.setToolTip(
+            "Mandatory: Data owner (will be appended to filename)"
+        )
+        self._sample.setToolTip(
+            "Mandatory: brief sample name (will be appended to filename)"
+        )
+        self._label.setToolTip(
+            "Optional: run label (will be appended to filename)"
+        )
+        self._comment.setToolTip(
+            "Optional: run comment / experiment description\n"
+            "Saved as plain text in the HDF5 file\n"
+            "(Not appended to filename)"
+        )
 
     def _wire_signals(self) -> None:
         self._run.clicked.connect(
@@ -226,6 +244,7 @@ class ExperimentControlWidget(QtWidgets.QWidget):
         return {
             "operator": self._operator.text(),
             "sample": self._sample.text(),
+            "label": self._label.text(),
             "comment": self._comment.toPlainText(),
         }
     

@@ -71,8 +71,11 @@ class SignalWidget(QtWidgets.QWidget):
 
     def append_curve(self, curve) -> None:        
         new_idx = len(self.time_curves)
-        pen = pg.mkPen(pg.hsvColor(curve.hue, 1.0, 1.0), width=2)
         
+        cmap = pg.colormap.get('spectrum')
+        color = cmap.map(curve.hue, mode='qcolor')
+        pen = pg.mkPen(color, width=2)
+
         self.time_curves[new_idx] = self.timeplot.plot(
             curve.waveform.time, curve.waveform.signal, pen=pen
         )
@@ -87,6 +90,7 @@ class SignalWidget(QtWidgets.QWidget):
                 angle=90,
                 movable=True,
             )
+            self.cursor.setPen(width=3)
             self.timeplot.addItem(self.cursor)
             self.cursor.sigPositionChangeFinished.connect(
                 self._on_cursor_moved

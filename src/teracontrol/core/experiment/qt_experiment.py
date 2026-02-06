@@ -239,6 +239,7 @@ class ExperimentWorker(QtCore.QObject):
 
         finally:
             self.signals.finished.emit()
+            self.signals.step_progress.emit(0, 1, "")  # reset step progress
 
     @QtCore.Slot()
     def abort(self):
