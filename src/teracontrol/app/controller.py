@@ -31,6 +31,7 @@ from teracontrol.engines import (
     CaptureEngine,
     HDF5RunWriter,
     TemperatureEngine,
+    FieldEngine,
 )
 from teracontrol.config import load_config, save_config
 from teracontrol.utils.logging import get_logger
@@ -71,8 +72,14 @@ class AppController(QtCore.QObject):
         
         self._temperature = TemperatureEngine(
             instrument=self._registry.get(InstrumentCatalog.TEMP),
-            device="Probe_DB8"
+            device="Probe_DB8",
         )
+
+        self._field = FieldEngine(
+            instrument=self._registry.get(InstrumentCatalog.FIELD),
+            device="GRPZ",
+        )
+
 
         self._reset_experiment_state()
         log.info("=== AppController initialized ===")
@@ -234,6 +241,8 @@ class AppController(QtCore.QObject):
         
         if axis_name == "temperature":
             self._axis = axis_cls(engine=self._temperature)
+        elif axis_name == "field":
+            self._axis = axis_cls(engine=self._field)
         else:
             self._axis = axis_cls()
 

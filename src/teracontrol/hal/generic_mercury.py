@@ -331,6 +331,39 @@ class GenericMercuryController(BaseHAL):
         return self._read_device(
             device_name, "ACTN", astype=str, expected_kind="PSU"
         )
+    
+    # --- Setters -------------------------------------------------------------
+
+    def set_target_field(self, device_name: str, value: float) -> None:
+        """Set the target magnet field strength of a power supply in Tesla."""
+        if value < -7.0 or value > 7.0:
+            raise ValueError("Magnet field must be between -7.0 and 7.0 T")
+
+        self._set_device(device_name, "SIG:FSET", value, expected_kind="PSU")
+
+    def set_current_rate(self, device_name: str, value: float) -> None:
+        """Set the current rate of a power supply in Ampere per minute."""
+
+        if value < 0.0 or value > 2.0:
+            raise ValueError("Current rate must be between 0.0 and 2.0 A/min")
+        
+        self._set_device(device_name, "SIG:RCST", value, expected_kind="PSU")
+
+    def magnet_to_set(self, device_name: str) -> None:
+        """Ramp the magnet to target field."""
+        self._set_device(device_name, "ACTN", "RTOS", expected_kind="PSU")
+
+    def magnet_to_hold(self, device_name: str) -> None:
+        """Hold the magnet at current field."""
+        self._set_device(device_name, "ACTN", "HOLD", expected_kind="PSU")
+
+    def magnet_to_zero(self, device_name: str) -> None:
+        """Ramp the magnet to zero field."""
+        self._set_device(device_name, "ACTN", "RTOZ", expected_kind="PSU")
+
+    #def magnet_to_clamp(self, device_name: str) -> None:
+    #    """Clamp the magnet."""
+    #    self._set_device(device_name, "ACTN", "CLMP", expected_kind="PSU")
 
     # ==========================================================================
     # Dictionary helpers

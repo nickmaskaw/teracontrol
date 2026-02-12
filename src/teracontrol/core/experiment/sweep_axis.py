@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import time
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from teracontrol.engines import TemperatureEngine
+from teracontrol.engines import TemperatureEngine, FieldEngine
 
 
 # =============================================================================
@@ -43,6 +44,23 @@ class SweepAxis(ABC):
         Hardware-backed axes may override this.
         """
         return self._current
+    
+    def is_ready(self) -> bool:
+        """
+        Return True if the axis is settled.
+        """
+        return True  # default: always ready
+    
+    def estimate_settle_time_s(self) -> float:
+        return 0.0  # default: no settling
+    
+    def shutdown(self) -> None:
+        """
+        Put the axis into a safe state.
+        Called if the experiment is aborted mid-motion.
+        Defualt: do nothing.
+        """
+        pass
     
     def set_current(self, value: float) -> None:
         """
@@ -121,6 +139,14 @@ class TemperatureAxis(SweepAxis):
         """
         return self._engine.read_temperature()
     
+    def shutdown(self) -> None:
+        """
+        Disable temperature control.
+
+        Intended to be called by experiment cleanup logic.
+        """
+        pass  # do nothing right now
+    
     # ------------------------------------------------------------------
     # Optional helpers (not required by SweepAxis)
     # ------------------------------------------------------------------
@@ -131,14 +157,6 @@ class TemperatureAxis(SweepAxis):
         """
         return self._engine.read_temperature_setpoint()
 
-    def shutdown(self) -> None:
-        """
-        Disable temperature control.
-
-        Intended to be called by experiment cleanup logic.
-        """
-        self._engine.end_temperature_control()
-
 
 class FieldAxis(SweepAxis):
     name = "field"
@@ -148,4 +166,49 @@ class FieldAxis(SweepAxis):
     minimum = -7.0
     maximum = 7.0
 
-    ...
+    def __init__(self, engine: FieldEngine):
+        super().__init__()
+        self._engine = engine
+
+    # ------------------------------------------------------------------
+    # Sweep axis API
+    # ------------------------------------------------------------------
+
+    def goto(self, value: float) -> None:
+        """
+        Set the magnet field setpoint and enable magnet control.
+        """
+        self._engine.set_target_field(value)
+        self._engine.goto_set()
+        self._current = value
+
+    def read(self) -> float:
+        """
+        Read the current measured field
+        """
+        return self._engine.read_field()
+
+    def is_ready(self) -> bool:
+        return self._engine.is_holding()
+    
+    def estimate_settle_time_s(self, value: float) -> float:
+        current = self._engine.read_field()    # T
+        rate = self._engine.read_field_rate()  # T/min
+
+        delta_field = abs(value - current)     # T
+        ramp_s = (delta_field / rate) * 60     
+
+        TIMEOUT_S = 500.0                 # max settling time
+        POST_RAMP_STABILIZATION_S = 15.0  # HOLD qualification, correction
+        BASE_OVERHEAD_S = 1.0             # command + state latency
+
+        estimated_s = ramp_s + POST_RAMP_STABILIZATION_S + BASE_OVERHEAD_S
+
+        estimated_s *= 1.3                   # safety margin
+        estimated_s = max(estimated_s, 2.0)  # never absurdly small
+        estimated_s = min(estimated_s, TIMEOUT_S)
+
+        return estimated_s
+    
+    def shutdown(self) -> None:
+        self._engine.hold()
