@@ -128,6 +128,31 @@ class ExperimentWorker(QtCore.QObject):
     def _position_axis(self, axis, value, dwell_s: float) -> bool:
         axis.goto(value)
 
+        if axis.blocking:
+            timeout_s = axis.estimate_settle_time_s(value)
+            t0 = time.monotonic()
+
+            while not axis.is_ready():
+                
+                if self._abort:
+                    return False
+                
+                elapsed_s = time.monotonic() - t0
+                
+                if elapsed_s > timeout_s:
+                    raise TimeoutError(
+                        f"{axis.name} axis did not stabilize "
+                        f"(elapsed={elapsed_s:.1f}s, expected<{timeout_s:.1f}s)"
+                )
+                
+                self.signals.step_progress.emit(
+                    int(elapsed_s * 1000),
+                    int(timeout_s * 1000),
+                    f"{axis.name}: stabilizing...",
+                )
+
+                QtCore.QThread.msleep(self._SLEEP_QUANTUM_MS)
+
         if dwell_s > 0:
             if not self._controlled_sleep(int(dwell_s * 1000)):
                 return False
@@ -240,6 +265,7 @@ class ExperimentWorker(QtCore.QObject):
         finally:
             self.signals.finished.emit()
             self.signals.step_progress.emit(0, 1, "")  # reset step progress
+            axis.shutdown()  # cleanup
 
     @QtCore.Slot()
     def abort(self):
