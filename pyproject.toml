@@ -34,3 +34,4 @@ where = ["src"]
 [project.scripts]
 teracontrol = "teracontrol.app.main:main"
 teracontrol-temp-log = "teracontrol.cli.temp_logger:main"
+teracontrol-plot-temp-log = "teracontrol.cli.plot_temp_log:main"
