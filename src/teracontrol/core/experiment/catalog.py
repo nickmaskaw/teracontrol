@@ -1,10 +1,11 @@
-from .sweep_axis import CountAxis, TemperatureAxis, FieldAxis
+from .sweep_axis import CountAxis, TemperatureAxis, FieldAxis, AngleAxis
 
 
 AXIS_CATALOG = {
     "count": CountAxis,
     "temperature": TemperatureAxis,
     "field": FieldAxis,
+    "angle": AngleAxis,
 }
 
 AXIS_DEFAULTS = {
@@ -24,6 +25,12 @@ AXIS_DEFAULTS = {
         "start": 0.0,
         "stop": 1.0,
         "step": 0.1,
-        "dwell": 0.0,
+        "dwell": 0.1,
+    },
+    "angle": {
+        "start": 0.0,
+        "stop": 360.0,
+        "step": 5.0,
+        "dwell": 0.1,
     }
 }

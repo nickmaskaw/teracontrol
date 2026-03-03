@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import time
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from teracontrol.engines import TemperatureEngine, FieldEngine
+from teracontrol.engines import TemperatureEngine, FieldEngine, AngleEngine
 
 
 # =============================================================================
@@ -212,3 +211,39 @@ class FieldAxis(SweepAxis):
     
     def shutdown(self) -> None:
         self._engine.hold()
+
+
+class AngleAxis(SweepAxis):
+    name = "angle"
+    unit = "deg"
+    decimals = 1
+    blocking = True
+    minimum = 0.0
+    maximum = 360.0
+
+    def __init__(self, engine: AngleEngine):
+        super().__init__()
+        self._engine = engine
+
+    # -------------------------------------------------------------------------
+    # Sweep axis API
+    # -------------------------------------------------------------------------
+
+    def goto(self, value: float) -> None:
+        self._engine.move_to(value)
+        self._current = value
+
+    def read(self) -> float:
+        return self._engine.get_position()
+    
+    def is_ready(self) -> bool:
+        if self._engine.is_connected():
+            return True
+        return False
+    
+    def estimate_settle_time_s(self, value: float) -> float:
+        return 30.0
+    
+    def shutdown(self) -> None:
+        pass
+

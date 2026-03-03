@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from datetime import datetime
 from typing import Any
 from PySide6 import QtCore
@@ -24,6 +23,7 @@ from teracontrol.hal import (
     TeraflashTHzSystem,
     MercuryITCController,
     MercuryIPSController,
+    KDC101Controller,
 )
 from teracontrol.engines import (
     ConnectionEngine,
@@ -32,6 +32,7 @@ from teracontrol.engines import (
     HDF5RunWriter,
     TemperatureEngine,
     FieldEngine,
+    AngleEngine,
 )
 from teracontrol.config import load_config, save_config
 from teracontrol.utils.logging import get_logger
@@ -59,8 +60,7 @@ class AppController(QtCore.QObject):
         self._registry.register(InstrumentCatalog.THZ, TeraflashTHzSystem())
         self._registry.register(InstrumentCatalog.TEMP, MercuryITCController())
         self._registry.register(InstrumentCatalog.FIELD, MercuryIPSController())
-
-        print(InstrumentCatalog.THZ)
+        self._registry.register(InstrumentCatalog.ANGLE, KDC101Controller())
 
         self._presets: dict[str, Any] = {}
         self._load_presets()
@@ -80,6 +80,9 @@ class AppController(QtCore.QObject):
             device="GRPZ",
         )
 
+        self._angle = AngleEngine(
+            instrument=self._registry.get(InstrumentCatalog.ANGLE),
+        )
 
         self._reset_experiment_state()
         log.info("=== AppController initialized ===")
@@ -99,6 +102,12 @@ class AppController(QtCore.QObject):
 
         if "instruments" not in self._presets:
             self._presets["instruments"] = INSTRUMENT_DEFAULTS
+
+        for instrument in INSTRUMENT_DEFAULTS:
+            if instrument not in self._presets["instruments"]:
+                self._presets["instruments"][instrument] = (
+                    INSTRUMENT_DEFAULTS[instrument]
+                )
 
         if "axes" not in self._presets:
             self._presets["axes"] = AXIS_DEFAULTS
@@ -243,6 +252,8 @@ class AppController(QtCore.QObject):
             self._axis = axis_cls(engine=self._temperature)
         elif axis_name == "field":
             self._axis = axis_cls(engine=self._field)
+        elif axis_name == "angle":
+            self._axis = axis_cls(engine=self._angle)
         else:
             self._axis = axis_cls()
 

@@ -54,6 +54,13 @@ class TeraflashTHzSystem(BaseHAL):
     def connect(self, address_ip: str = "127.0.0.1") -> None:
         log.info("Connecting to Teraflash THz system at %s", address_ip)
 
+        if "--ch=" in address_ip:
+            split = address_ip.split("--ch=")
+            address_ip = split[0].strip()
+            
+            channel = int(split[1].strip())
+            self.set_channel(channel)
+
         try: 
             self.host = address_ip
             self._udp_tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -290,6 +297,7 @@ class TeraflashTHzSystem(BaseHAL):
             )
         
         self._channel = channel
+        log.info("Set channel to %d", self._channel)
     
     def set_laser_on(self) -> None:
         self._set("RC-LASER", "ON")

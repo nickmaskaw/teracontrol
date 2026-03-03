@@ -4,3 +4,4 @@ from .capture_engine import CaptureEngine
 from .hdf5_writer import HDF5RunWriter
 from .temperature_engine import TemperatureEngine
 from .field_engine import FieldEngine
+from .angle_engine import AngleEngine

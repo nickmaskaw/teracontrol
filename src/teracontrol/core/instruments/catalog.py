@@ -10,6 +10,7 @@ class InstrumentCatalog:
     THZ = "TeraFlash"
     TEMP = "ITC"
     FIELD = "IPS"
+    ANGLE = "KDC101"
 
 # =============================================================================
 # Instrument Defaults
@@ -27,5 +28,9 @@ INSTRUMENT_DEFAULTS = {
     InstrumentCatalog.FIELD: {
         "address_type": "<ip>",
         "address": "192.168.1.3",
+    },
+    InstrumentCatalog.ANGLE: {
+        "address_type": "<port>",
+        "address": "COM3",
     },
 }
