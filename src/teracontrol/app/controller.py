@@ -24,6 +24,7 @@ from teracontrol.hal import (
     MercuryITCController,
     MercuryIPSController,
     KDC101Controller,
+    CernoxController,
 )
 from teracontrol.engines import (
     ConnectionEngine,
@@ -61,6 +62,7 @@ class AppController(QtCore.QObject):
         self._registry.register(InstrumentCatalog.TEMP, MercuryITCController())
         self._registry.register(InstrumentCatalog.FIELD, MercuryIPSController())
         self._registry.register(InstrumentCatalog.ANGLE, KDC101Controller())
+        self._registry.register(InstrumentCatalog.CERNOX, CernoxController())
 
         self._presets: dict[str, Any] = {}
         self._load_presets()

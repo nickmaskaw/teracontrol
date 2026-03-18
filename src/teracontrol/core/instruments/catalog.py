@@ -11,6 +11,7 @@ class InstrumentCatalog:
     TEMP = "ITC"
     FIELD = "IPS"
     ANGLE = "KDC101"
+    CERNOX = "Cernox"
 
 # =============================================================================
 # Instrument Defaults
@@ -32,5 +33,9 @@ INSTRUMENT_DEFAULTS = {
     InstrumentCatalog.ANGLE: {
         "address_type": "<port>",
         "address": "COM3",
+    },
+    InstrumentCatalog.CERNOX: {
+        "address_type": "<ip>",
+        "address": "192.168.1.4",
     },
 }

@@ -4,3 +4,4 @@ from .teraflash import TeraflashTHzSystem
 from .mercury_itc import MercuryITCController
 from .mercury_ips import MercuryIPSController
 from .KDC101 import KDC101Controller
+from .cernox import CernoxController

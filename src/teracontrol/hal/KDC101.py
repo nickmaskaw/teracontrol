@@ -1,6 +1,6 @@
 import serial
 import time
-from typing import Any
+from typing import Any, Callable
 
 from teracontrol.hal.base import BaseHAL
 from teracontrol.utils.logging import get_logger
